@@ -72,32 +72,37 @@ For every unit, `exhaustDirection = -forceDirection`. Lift output never reverses
 
 The four decorative rear outlet housings are part of the car's appearance. They are separate from the eight active registry entries and are not animated as extra controls. Effects never relocate or rotate a registered emitter to make a visual approximation of a different force.
 
-## Exhaust and ground vapor
+## Exhaust smoke and ground clouds
 
-Each active emitter has a pale blue cone and a pooled vapor trail. Plume length, width and opacity follow that emitter's actual output. The cone geometry is aligned with local `−Y` before its fixed nozzle orientation is applied.
+Each active nozzle has a short, translucent blue core surrounded by textured white/gray smoke. Smoke follows actual `game.thrusterLevels`, the registered nozzle position and its fixed exhaust direction. It inherits some vehicle velocity, slows as it entrains air, expands, rotates and drifts with turbulence. Exhaust puffs last 2.2–3.1 seconds rather than disappearing as soon as thrust stops.
 
-For ground interaction, effects transform the nozzle origin and exhaust direction into world coordinates. A downward ray intersects the ground plane when:
+[`createSmokePool.js`](../src/scene/createSmokePool.js) bakes a shared 256 × 256 texture atlas once. Its 16 distinct billows come from integrating density and approximate light attenuation through fractal 3D noise. This gives each puff internal shadows and irregular edges without downloaded textures or an additional particle library. The fragment shader slowly advects the texture to keep the smoke evolving.
+
+Smoke uses camera-facing instanced quads rather than point sprites, so large nearby billows are not limited by the GPU's point-size cap. All smoke kinds share one normal-blended pool, sorted back to front using the current camera before GPU upload. Depth testing lets opaque scene geometry occlude the smoke; smoke does not write depth. A world-height fade blends the lower edges into the road. This is a particle approximation of volumetric smoke, not a fluid simulation or scene-wide fog.
+
+### Ground interaction and persistence
+
+Effects transform each active nozzle origin and exhaust direction into world coordinates. A downward ray intersects the ground plane at:
 
 ```js
 distance = -worldOrigin.y / worldExhaustDirection.y;
 ```
 
-Only positive intersections inside the effective range, `6 + 2 * level` metres, produce ground mist. This works while the car is still airborne. A downward-pointing horizontal unit can also produce mist after the car rotates; an upward-pointing jet cannot.
+Only positive intersections inside the effective range, `6 + 2 * level` metres, produce ground clouds. This works while the car is airborne, including downward-pointing horizontal units when the car banks. An upward-pointing jet cannot disturb the ground.
 
-The blue cone is clipped at the asphalt. White/gray mist then spreads sideways from the intersection, staying close to the ground and fading after the burn. It is localized particle geometry, not `scene.fog`, and is independent of the one-shot touchdown dust.
+Closer, stronger jets emit more smoke. The outwash initially spreads radially across the asphalt, then curls upward around and above the body. Several simultaneous lift jets build a dense cloud capable of engulfing the car. Ground puffs last 4.5–6 seconds and gradually fade after cutoff. Existing smoke remains in world space when the car moves away. Touchdown dust and crash sparks are separate one-shot feedback; a crash also emits darker textured smoke briefly.
 
 ### Fixed particle budget
 
-| Pool             | Capacity | Blending and purpose                                  |
-| ---------------- | -------: | ----------------------------------------------------- |
-| Vapor            |      112 | Additive blue gas and short crash sparks              |
-| Ground mist      |       80 | Normal blending; flattened white/gray ground wisps    |
-| Touchdown debris |       48 | Normal blending; contact dust and limited crash smoke |
-| **Total**        |  **240** | **Three `THREE.Points` objects**                      |
+| Pool             | Capacity | Blending and purpose                                    |
+| ---------------- | -------: | ------------------------------------------------------- |
+| Smoke            |    2,048 | Normal blending; exhaust, ground clouds and crash smoke |
+| Crash sparks     |       32 | Additive point sprites; short impact sparks             |
+| Touchdown debris |       48 | Normal point sprites; contact dust                      |
 
-Each pool owns reusable typed arrays for position, velocity, color, size, alpha and lifetime. Emission uses accumulated seconds rather than one particle per frame. When a pool fills, its ring buffer reuses the oldest slot. Shader-generated soft sprites require no image textures.
+The smoke pool uses one instanced draw call and reusable typed arrays for simulation and GPU attributes. It uploads only live instances, sorted together across smoke kinds. Emission uses accumulated seconds rather than one particle per frame. At capacity, a ring buffer reuses the oldest slot. The atlas is shared across effects instances; no per-frame geometry or texture construction is required.
 
-`reset()` clears particle visibility, emission credits and wheel/plume animation. It keeps the existing objects and GPU buffers for the next attempt. The normal update path does not construct new particle geometries.
+`reset()` clears visibility, emission credits, crash continuations and wheel/plume animation while retaining the allocated objects and buffers. Pausing freezes aging and emission while still updating sort order if the camera orbits. The app passes the current camera as the optional fifth argument to `effects.update(dt, game, car, input, camera)`.
 
 ## Lighting and performance knobs
 
@@ -109,7 +114,7 @@ Useful places to adjust rendering cost are:
 - **Shadow map size:** change the directional light configuration in `addLights` inside `createEnvironment.js`.
 - **Car detail:** choose `createRoadster({ detailed: false })` for fewer wheel segments and decorative parts.
 - **Ramp tessellation:** `createRampStrip` defaults to 112 segments. The visible strips and their normals use that subdivision.
-- **Particle capacity:** the three pool constants at the top of `createEffects.js` bound memory and effect density. Emission rates, mist lifetime and sprite flattening are nearby rendering controls.
+- **Particle capacity:** the smoke capacity in `createSmokePool.js` and the small point-pool constants in `createEffects.js` bound memory and effect density. Emission rates, smoke lifetime, expansion and opacity control cloud fullness and overdraw; check mobile performance when increasing them.
 
 Rendering tuning should preserve actuator IDs and directions, body scale, wheel radius and the riding surface shared with physics. Changing a force or collision tolerance belongs in the game modules rather than a visual effect.
 

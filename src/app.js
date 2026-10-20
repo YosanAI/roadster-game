@@ -314,7 +314,8 @@ export function startGameApp() {
       });
       car.position.copy(game.position);
       car.quaternion.copy(game.quaternion);
-      effects.update(Math.min(effectsDt, 0.1), game, car, input);
+      updateCamera(dt);
+      effects.update(Math.min(effectsDt, 0.1), game, car, input, camera);
       environment.update(elapsed, game.stage);
       audio.update(game, input, isPaused);
       contactShadow.position.set(game.position.x, 0.023, game.position.z);
@@ -325,7 +326,6 @@ export function startGameApp() {
         resultDelay -= dt;
         if (resultDelay <= 0) showResult();
       }
-      updateCamera(dt);
       hudElapsed += dt;
       if (hudElapsed >= 1 / 20) {
         hud.update(game);

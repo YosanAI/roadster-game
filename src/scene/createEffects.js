@@ -1,17 +1,14 @@
 import * as THREE from 'three';
+import { createSmokePool } from './createSmokePool.js';
 
-const VAPOR_COUNT = 112;
-const GROUND_MIST_COUNT = 80;
+const SPARK_COUNT = 32;
 const DEBRIS_COUNT = 48;
 const clamp = THREE.MathUtils.clamp;
 
 // Pool sizes and sprite kinds are rendering-only tuning; no game forces live here.
 const PARTICLE_KIND = Object.freeze({
-  VAPOR: 0,
   DUST: 1,
   SPARK: 2,
-  SMOKE: 3,
-  GROUND_MIST: 4,
 });
 
 const vertexShader = `
@@ -112,7 +109,7 @@ function createParticlePool(scene, count, { additive, name, flatten = 1 }) {
     life[i] = duration[i] = options.life;
     size[i] = initialSize[i] = options.size;
     alpha[i] = initialAlpha[i] = options.alpha;
-    particleKinds[i] = options.kind || PARTICLE_KIND.VAPOR;
+    particleKinds[i] = options.kind;
   }
 
   function update(dt) {
@@ -122,52 +119,21 @@ function createParticlePool(scene, count, { additive, name, flatten = 1 }) {
       const progress = 1 - life[i] / duration[i];
       const j = i * 3;
       const particleKind = particleKinds[i];
-      const dragRate =
-        particleKind === PARTICLE_KIND.GROUND_MIST
-          ? 1.1
-          : particleKind === PARTICLE_KIND.SPARK
-            ? 0.5
-            : particleKind === PARTICLE_KIND.VAPOR
-              ? 1.8
-              : 2.4;
+      const dragRate = particleKind === PARTICLE_KIND.SPARK ? 0.5 : 2.4;
       const drag = Math.exp(-dt * dragRate);
       velocity[j] *= drag;
       velocity[j + 2] *= drag;
-      if (particleKind === PARTICLE_KIND.GROUND_MIST) velocity[j + 1] *= Math.exp(-dt * 4);
-      else
-        velocity[j + 1] +=
-          (particleKind === PARTICLE_KIND.SPARK
-            ? -7.5
-            : particleKind === PARTICLE_KIND.DUST
-              ? -1.4
-              : particleKind === PARTICLE_KIND.SMOKE
-                ? 0.8
-                : 0.3) * dt;
+      velocity[j + 1] += (particleKind === PARTICLE_KIND.SPARK ? -7.5 : -1.4) * dt;
       position[j] += velocity[j] * dt;
       position[j + 1] += velocity[j + 1] * dt;
       position[j + 2] += velocity[j + 2] * dt;
-      if (particleKind === PARTICLE_KIND.GROUND_MIST) {
-        // An impinging jet turns outward along the asphalt, forming a low
-        // spreading blanket rather than a rising smoke column or scene fog.
-        position[j + 1] = clamp(position[j + 1], 0.045, 0.24);
-      } else if (particleKind === PARTICLE_KIND.VAPOR && position[j + 1] < 0.035) {
-        life[i] = 0;
-      } else if (particleKind !== PARTICLE_KIND.VAPOR && position[j + 1] < 0.045) {
+      if (position[j + 1] < 0.045) {
         position[j + 1] = 0.045;
         velocity[j + 1] =
           Math.abs(velocity[j + 1]) * (particleKind === PARTICLE_KIND.SPARK ? 0.18 : 0.04);
       }
       size[i] =
-        initialSize[i] *
-        (1 +
-          progress *
-            (particleKind === PARTICLE_KIND.SPARK
-              ? -0.4
-              : particleKind === PARTICLE_KIND.GROUND_MIST
-                ? 2.8
-                : particleKind === PARTICLE_KIND.SMOKE
-                  ? 2.5
-                  : 2.0));
+        initialSize[i] * (1 + progress * (particleKind === PARTICLE_KIND.SPARK ? -0.4 : 2.0));
       alpha[i] =
         life[i] > 0
           ? initialAlpha[i] *
@@ -193,22 +159,19 @@ function createParticlePool(scene, count, { additive, name, flatten = 1 }) {
  * invents stabilizing jets, reverses an upward lift, or turns road brakes into
  * exhaust. Each output drives only its own fixed car-local emitter.
  *
- * Three reusable GPU point pools contain 240 particles altogether. Ground mist
- * is emitted by exhaust/ground intersections during the burn, independently of
- * touchdown, and keeps spreading and fading after the throttle is released.
+ * Textured, depth-sorted smoke billboards share one fixed GPU pool. Ground
+ * outwash is emitted at exhaust/ground intersections during the burn and curls
+ * up around the car, lingering for 4.5–6 seconds after emission. Separate small
+ * point pools preserve the fast sparks and one-shot touchdown debris.
  *
- * @param {THREE.Scene} scene The scene receiving the three pooled Points objects.
+ * @param {THREE.Scene} scene The scene receiving the reusable particle objects.
  * @returns {{update: Function, touchdown: Function, reset: Function}}
  */
 export function createEffects(scene) {
-  const vapor = createParticlePool(scene, VAPOR_COUNT, {
+  const smoke = createSmokePool(scene);
+  const sparks = createParticlePool(scene, SPARK_COUNT, {
     additive: true,
-    name: 'cold-gas-vapor-pool',
-  });
-  const groundMist = createParticlePool(scene, GROUND_MIST_COUNT, {
-    additive: false,
-    name: 'ground-mist-pool',
-    flatten: 0.4,
+    name: 'crash-spark-pool',
   });
   const debris = createParticlePool(scene, DEBRIS_COUNT, {
     additive: false,
@@ -245,19 +208,18 @@ export function createEffects(scene) {
     const spread = (1.0 + level * 3.0) * (0.55 + Math.random() * 0.6);
     point.copy(impactPoint);
     point.x += (Math.random() - 0.5) * 0.35;
-    point.y = 0.055 + Math.random() * 0.065;
+    point.y = 0.22 + Math.random() * 0.2;
     point.z += (Math.random() - 0.5) * 0.35;
     velocity.set(
       Math.cos(angle) * spread + direction.x * 1.5,
-      0.035 + Math.random() * 0.13,
+      0.65 + Math.random() * 1.1,
       Math.sin(angle) * spread + direction.z * 1.5,
     );
-    groundMist.spawn(point, velocity, {
-      life: 0.9 + Math.random() * 0.85,
-      size: 0.5 + Math.random() * 0.48 + level * 0.2,
-      alpha: (0.24 + level * 0.34) * (0.55 + closeness * 0.45),
-      color: [0.62, 0.68, 0.72],
-      kind: PARTICLE_KIND.GROUND_MIST,
+    smoke.spawn(point, velocity, {
+      life: 4.5 + Math.random() * 1.5,
+      size: 0.7 + Math.random() * 0.55 + closeness * 0.3,
+      alpha: (0.6 + level * 0.22) * (0.55 + closeness * 0.45),
+      kind: 1,
     });
   }
 
@@ -267,9 +229,15 @@ export function createEffects(scene) {
    * @param {import('../game/FlightGame.js').FlightGame} game Read-only simulation state.
    * @param {THREE.Group} car The group returned by createRoadster.
    * @param {object} [input] Reserved for API compatibility; actual actuator levels drive jets.
+   * @param {THREE.Camera} [camera] Current view for back-to-front smoke sorting.
    */
-  function update(dt, game, car, input = {}) {
-    if (!Number.isFinite(dt) || dt <= 0) return;
+  function update(dt, game, car, input = {}, camera) {
+    if (!Number.isFinite(dt) || dt < 0) return;
+    if (dt === 0) {
+      // Orbiting remains available while paused; re-sort without aging/emitting.
+      smoke.update(0, camera);
+      return;
+    }
     dt = Math.min(dt, 0.25);
     elapsed += dt;
     bind(car);
@@ -301,13 +269,15 @@ export function createEffects(scene) {
         const closeness = hitsGround ? 1 - rayDistance / range : 0;
         const flicker = 1 + Math.sin(elapsed * 57 + i * 2.31) * 0.07;
         const width = 0.12 + Math.sqrt(level) * 0.75;
-        const jetLength = (0.15 + level * 4.1) * flicker;
+        // Keep only a short translucent nozzle core; textured smoke forms the plume.
+        const jetLength = (0.12 + level * 0.65) * flicker;
         plume.scale.set(width, hitsGround ? Math.min(jetLength, rayDistance) : jetLength, width);
-        plume.material.opacity = 0.03 + level * 0.49;
+        plume.material.opacity = 0.025 + level * 0.1;
 
         // Pooled emission rates use accumulated seconds, so the same actuator
         // burn produces the same average density at different render rates.
-        emissionCredit[i] += dt * 25 * level;
+        emissionCredit[i] += dt * 58 * level;
+        if (!wasActive) emissionCredit[i] = Math.max(1, emissionCredit[i]);
         while (emissionCredit[i] >= 1) {
           emissionCredit[i] -= 1;
           point
@@ -316,23 +286,22 @@ export function createEffects(scene) {
           point.x += (Math.random() - 0.5) * 0.09;
           point.y += (Math.random() - 0.5) * 0.09;
           point.z += (Math.random() - 0.5) * 0.09;
-          velocity.copy(direction).multiplyScalar(4 + level * 5);
+          velocity.copy(direction).multiplyScalar(6 + level * 7);
           if (game.velocity) velocity.addScaledVector(game.velocity, 0.65);
           velocity.x += (Math.random() - 0.5) * 0.65;
           velocity.y += (Math.random() - 0.5) * 0.65;
           velocity.z += (Math.random() - 0.5) * 0.65;
-          vapor.spawn(point, velocity, {
-            life: 0.28 + Math.random() * 0.4,
-            size: 0.18 + Math.random() * 0.15,
-            alpha: 0.18 + level * 0.28,
-            color: [0.36, 0.65, 0.91],
-            kind: PARTICLE_KIND.VAPOR,
+          smoke.spawn(point, velocity, {
+            life: 2.2 + Math.random() * 0.9,
+            size: 0.32 + Math.random() * 0.2,
+            alpha: 0.45 + level * 0.25,
+            kind: 0,
           });
         }
 
         if (hitsGround) {
           impactPoint.copy(origin).addScaledVector(direction, rayDistance);
-          groundCredit[i] += dt * (5 + level * 22) * (0.2 + closeness * 0.8);
+          groundCredit[i] += dt * (12 + level * 50) * (0.25 + closeness * 0.75);
           // A first wisp appears immediately when an active jet reaches the
           // asphalt, including burns made while the vehicle is still airborne.
           if (!wasActive) groundCredit[i] = Math.max(1, groundCredit[i]);
@@ -363,17 +332,17 @@ export function createEffects(scene) {
           0.5 + Math.random() * 0.7,
           (Math.random() - 0.5) * 0.3,
         );
-        debris.spawn(point, velocity, {
-          life: 0.8 + Math.random() * 1.0,
-          size: 0.35 + Math.random() * 0.28,
-          alpha: 0.3,
-          color: [0.09, 0.11, 0.12],
-          kind: PARTICLE_KIND.SMOKE,
+        smoke.spawn(point, velocity, {
+          life: 3 + Math.random() * 1.5,
+          size: 0.45 + Math.random() * 0.3,
+          alpha: 0.55,
+          shade: 0.24,
+          kind: 2,
         });
       }
     }
-    vapor.update(dt);
-    groundMist.update(dt);
+    smoke.update(dt, camera);
+    sparks.update(dt);
     debris.update(dt);
   }
 
@@ -418,7 +387,7 @@ export function createEffects(scene) {
           (0.7 + Math.random() * 2.6) * strength,
           (Math.random() - 0.5) * 5 * strength,
         );
-        vapor.spawn(point, velocity, {
+        sparks.spawn(point, velocity, {
           life: 0.18 + Math.random() * 0.36,
           size: 0.035 + Math.random() * 0.025,
           alpha: 0.8,
@@ -434,8 +403,8 @@ export function createEffects(scene) {
 
   /** Clear an attempt's particles and wheel/plume animation without rebuilding assets. */
   function reset() {
-    vapor.reset();
-    groundMist.reset();
+    smoke.reset();
+    sparks.reset();
     debris.reset();
     smokeTime = 0;
     smokeCredit = 0;
