@@ -1,0 +1,62 @@
+/** Resolve the HTML contract once and fail clearly if an element was renamed. */
+export function getUiElements(root = document) {
+  const ids = [
+    'game',
+    'scene',
+    'loading',
+    'fatal',
+    'fatal-message',
+    'intro',
+    'start',
+    'status',
+    'status-dot',
+    'stage-climb',
+    'stage-release',
+    'stage-land',
+    'climb-progress',
+    'altitude',
+    'descent',
+    'tilt',
+    'attitude-tag',
+    'fuel-value',
+    'fuel-progress',
+    'slow',
+    'coach',
+    'coach-title',
+    'coach-detail',
+    'flight-controls',
+    'drive-controls',
+    'control-mode-label',
+    'telemetry-title',
+    'motion-label',
+    'motion-unit',
+    'result',
+    'result-eyebrow',
+    'result-icon',
+    'result-title',
+    'result-description',
+    'result-impact',
+    'result-tilt',
+    'retry',
+    'replay',
+    'restart',
+    'attempt-count',
+    'sound',
+    'sound-label',
+    'camera',
+    'camera-label',
+    'fullscreen',
+    'help',
+    'help-dialog',
+    'close-help',
+    'help-done',
+    'toast',
+  ];
+  return Object.fromEntries(
+    ids.map((id) => {
+      const element = root.getElementById(id);
+      if (!element) throw new Error(`Missing game UI element: #${id}`);
+      return [id, element];
+    }),
+  );
+}

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#080a0c" />
+    <meta
+      name="description"
+      content="Drive a white Roadster up an inverted wall using the pedal and brake. Roll off the edge, take over the cold-gas thrusters, and land safely in this 3D stunt game."
+    />
+    <title>Roadster / Controlled Fall</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23080a0c'/%3E%3Cpath d='M18 48V16h19l10 10-10 10 11 12H35L22 33h14l5-7-5-5H24v27z' fill='%23f5f5f2'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <main id="game" aria-label="Roadster controlled fall game">
+      <canvas
+        id="scene"
+        aria-label="3D Roadster and illuminated inverted wall. Drag to look around and scroll to zoom."
+        tabindex="0"
+      ></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <div class="wordmark">
+          <span class="brand-icon" aria-hidden="true">R</span>
+          <div>
+            <span class="brand-name">ROADSTER</span><span class="brand-sub">CONTROLLED FALL</span>
+          </div>
+        </div>
+        <div class="level-tag">
+          <span class="red-tick"></span> LEVEL 01 <span class="muted">/</span> THE WALL
+        </div>
+        <nav class="tools" aria-label="Game options">
+          <button id="sound" class="tool" aria-label="Turn sound on" title="Toggle sound (M)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M11 5 6 9H3v6h3l5 4V5Zm5 4 5 6m0-6-5 6" /></svg
+            ><span id="sound-label">SOUND OFF</span>
+          </button>
+          <button id="camera" class="tool" title="Change camera (C)" aria-label="Change camera">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h4l2-3h4l2 3h4v13H4V7Z" />
+              <circle cx="12" cy="13" r="3.5" /></svg
+            ><span id="camera-label">EVENT</span>
+          </button>
+          <button id="help" class="tool icon-only" aria-label="How to play" title="How to play (?)">
+            ?
+          </button>
+          <button
+            id="fullscreen"
+            class="tool icon-only"
+            aria-label="Enter fullscreen"
+            title="Fullscreen (F)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />
+            </svg>
+          </button>
+        </nav>
+      </header>
+
+      <section class="mission" aria-label="Attempt status">
+        <div class="eyebrow">
+          <span id="status-dot" class="status-dot"></span><span id="status">READY ON THE ROAD</span>
+        </div>
+        <div class="stages" aria-hidden="true">
+          <span id="stage-climb">01 DRIVE</span><i></i><span id="stage-release">02 EDGE</span><i></i
+          ><span id="stage-land">03 LAND</span>
+        </div>
+        <div class="climb-track"><div id="climb-progress"></div></div>
+        <span id="control-mode-label" class="mode-badge">DRIVE MODE</span>
+      </section>
+
+      <aside class="telemetry" aria-label="Live vehicle instruments">
+        <div class="telemetry-heading">
+          <span id="telemetry-title">DRIVE TELEMETRY</span
+          ><span class="live-indicator">LIVE <i></i></span>
+        </div>
+        <div class="instrument">
+          <span class="instrument-label">ALTITUDE</span>
+          <div><strong id="altitude">0.0</strong><span class="unit">m</span></div>
+        </div>
+        <div class="instrument">
+          <span id="motion-label" class="instrument-label">SPEED</span>
+          <div>
+            <strong id="descent">0.0</strong><span id="motion-unit" class="unit">km/h</span>
+          </div>
+        </div>
+        <div class="instrument attitude">
+          <span class="instrument-label">TILT FROM UPRIGHT</span>
+          <div>
+            <strong id="tilt">0</strong><span class="unit">°</span
+            ><span id="attitude-tag" class="attitude-tag">LEVEL</span>
+          </div>
+        </div>
+        <div class="fuel">
+          <div><span>GAS RESERVE</span><span id="fuel-value">100%</span></div>
+          <div class="fuel-track"><div id="fuel-progress"></div></div>
+        </div>
+        <button id="slow" class="slow-toggle" aria-pressed="false" title="Toggle slow motion (T)">
+          <span class="toggle-track"><i></i></span><span>SLOW MOTION</span
+          ><span class="slow-rate">0.5×</span>
+        </button>
+      </aside>
+
+      <section id="intro" class="intro panel">
+        <div class="eyebrow">A THRUSTER LANDING CHALLENGE</div>
+        <h1>Controlled<br /><span>fall.</span></h1>
+        <p>Drive up the wall. Leave the edge.<br />Bring it back on four wheels.</p>
+        <button id="start" class="primary">START DRIVING <span aria-hidden="true">↗</span></button>
+        <div class="intro-limits">
+          <span>15° <small>TILT LIMIT</small></span
+          ><i></i><span>5.0 <small>m/s IMPACT LIMIT</small></span>
+        </div>
+      </section>
+
+      <div id="coach" class="coach" hidden>
+        <span id="coach-title">DRIVE UP THE WALL</span
+        ><span id="coach-detail">Hold the pedal to accelerate. Use the brake to slow down.</span>
+      </div>
+
+      <section id="drive-controls" class="drive-controls" aria-label="Driving controls" hidden>
+        <span class="control-label drive-caption">DRIVE / SUCTION ACTIVE</span>
+        <div class="button-row">
+          <button
+            class="control-button drive-brake-button"
+            data-action="drive-brake"
+            aria-label="Brake, hold S"
+          >
+            <span class="control-symbol" aria-hidden="true">■</span
+            ><span class="control-name">BRAKE</span><kbd>S</kbd>
+          </button>
+          <button
+            class="control-button pedal-button"
+            data-action="pedal"
+            aria-label="Accelerator pedal, hold W"
+          >
+            <span class="control-symbol" aria-hidden="true">↑</span
+            ><span class="control-name">PEDAL</span><kbd>W</kbd>
+          </button>
+        </div>
+      </section>
+
+      <section id="flight-controls" class="flight-controls" aria-label="Thruster controls" hidden>
+        <div class="control-group roll-group">
+          <span class="control-label">ROLL</span>
+          <div class="button-row">
+            <button class="control-button" data-action="roll-left" aria-label="Roll left, hold Q">
+              <span class="control-symbol">↶</span><span class="control-name">ROLL L</span
+              ><kbd>Q</kbd>
+            </button>
+            <button class="control-button" data-action="roll-right" aria-label="Roll right, hold E">
+              <span class="control-symbol">↷</span><span class="control-name">ROLL R</span
+              ><kbd>E</kbd>
+            </button>
+          </div>
+        </div>
+        <div class="control-group horizontal-group">
+          <span class="control-label">HORIZONTAL</span>
+          <div class="direction-grid">
+            <button
+              class="control-button direction-forward"
+              data-action="surge-forward"
+              aria-label="Thrust forward, hold W or up arrow"
+            >
+              <span class="control-symbol" aria-hidden="true">↑</span
+              ><span class="control-name">FORWARD</span><kbd>W</kbd>
+            </button>
+            <button
+              class="control-button direction-left"
+              data-action="strafe-left"
+              aria-label="Thrust left, hold A or left arrow"
+            >
+              <span class="control-symbol" aria-hidden="true">←</span
+              ><span class="control-name">LEFT</span><kbd>A</kbd>
+            </button>
+            <button
+              class="control-button direction-back"
+              data-action="surge-back"
+              aria-label="Thrust backward, hold S or down arrow"
+            >
+              <span class="control-symbol" aria-hidden="true">↓</span
+              ><span class="control-name">BACK</span><kbd>S</kbd>
+            </button>
+            <button
+              class="control-button direction-right"
+              data-action="strafe-right"
+              aria-label="Thrust right, hold D or right arrow"
+            >
+              <span class="control-symbol" aria-hidden="true">→</span
+              ><span class="control-name">RIGHT</span><kbd>D</kbd>
+            </button>
+          </div>
+        </div>
+        <div class="control-group lift-group">
+          <span class="control-label">LIFT</span>
+          <div class="button-row">
+            <button
+              class="control-button lift-button"
+              data-action="lift"
+              aria-label="Fire all four lift thrusters, hold space"
+            >
+              <span class="control-symbol" aria-hidden="true">⇈</span
+              ><span class="control-name">LIFT</span><kbd>SPACE</kbd>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="result" class="result panel" aria-live="polite" hidden>
+        <div id="result-eyebrow" class="eyebrow">ATTEMPT COMPLETE</div>
+        <div id="result-icon" class="result-icon" aria-hidden="true">✓</div>
+        <h2 id="result-title">Landed safe.</h2>
+        <p id="result-description">More levels coming soon.</p>
+        <div class="result-grid">
+          <div>
+            <span>IMPACT</span><strong id="result-impact">0.0 <small>m/s</small></strong
+            ><small>LIMIT 5.0 m/s</small>
+          </div>
+          <div>
+            <span>LANDING TILT</span><strong id="result-tilt">0 <small>°</small></strong
+            ><small>LIMIT 15°</small>
+          </div>
+        </div>
+        <button
+          id="retry"
+          class="primary"
+          title="Start stopped on the inverted lip, then pedal to the edge"
+        >
+          RETRY FROM THE TOP <span aria-hidden="true">↗</span>
+        </button>
+        <button id="replay" class="text-button">Drive from the road <span>↺</span></button>
+      </section>
+
+      <footer class="bottom-bar">
+        <span id="attempt-count">ATTEMPT 01</span
+        ><span class="footer-instruction">DRAG TO ORBIT <i>·</i> SCROLL TO ZOOM</span
+        ><button id="restart" class="text-button" title="Restart (R)">RESTART <kbd>R</kbd></button>
+      </footer>
+      <div id="toast" class="toast" role="status" hidden></div>
+      <div id="loading" class="loading">
+        <span class="loading-mark">R</span><span>PREPARING THE COURSE</span>
+        <div class="loading-track"></div>
+      </div>
+      <div id="fatal" class="fatal panel" hidden>
+        <h2>Unable to start 3D.</h2>
+        <p id="fatal-message">This game needs a browser with WebGL 2 enabled.</p>
+        <button class="primary" onclick="location.reload()">TRY AGAIN</button>
+      </div>
+
+      <dialog id="help-dialog" aria-labelledby="help-title">
+        <button id="close-help" class="dialog-close" aria-label="Close instructions">×</button>
+        <div class="eyebrow">LEVEL 01 / THE WALL</div>
+        <h2 id="help-title">Stick the landing.</h2>
+        <ol class="how-to">
+          <li>
+            <b>Drive.</b> Hold <kbd>W</kbd> or the pedal to accelerate, and <kbd>S</kbd> or the
+            brake to slow down. Suction keeps the wheels on the road, the wall, and the inverted
+            lip. You control the climb.
+          </li>
+          <li>
+            <b>Leave the edge.</b> Keep driving along the top. When the wheels leave the wall, the
+            controls automatically switch to thrusters.
+          </li>
+          <li>
+            <b>Roll upright.</b> Hold <kbd>Q</kbd> or <kbd>E</kbd> to fire the lift pair on one
+            side. Release to let the opposite pair check the rotation. Get your wheels underneath
+            you.
+          </li>
+          <li>
+            <b>Land softly.</b> Hold <kbd>SPACE</kbd> to fire all four lift jets. They push in the
+            car’s up direction, with exhaust below the wheels. Use short pulses to slow the fall,
+            and <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys to move forward,
+            left, back, or right relative to the car.
+          </li>
+        </ol>
+        <div class="help-controls">
+          <span><kbd>W</kbd> <kbd>S</kbd> Pedal / brake on road</span
+          ><span><kbd>Q</kbd> <kbd>E</kbd> Roll in flight</span
+          ><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Horizontal thrust</span
+          ><span><kbd>SPACE</kbd> Lift in flight</span><span><kbd>T</kbd> Optional slow motion</span
+          ><span><kbd>R</kbd> Retry</span>
+        </div>
+        <p class="help-note">
+          Touch down within 15° of upright and below 5 m/s. Excessive speed, sideways drift, spin,
+          or a collision damages the car. The game starts at normal speed; slow motion is available
+          for practice.
+        </p>
+        <div class="help-reference">
+          A game reconstruction of the Roadster event. Vehicle geometry and physics are
+          approximations.<a
+            href="https://www.youtube.com/watch?v=qt5p-_tE8d0"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Watch the event ↗</a
+          >
+        </div>
+        <button id="help-done" class="primary">GOT IT <span>↗</span></button>
+      </dialog>
+    </main>
+    <noscript>This 3D game needs JavaScript enabled.</noscript>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
