@@ -55,14 +55,16 @@ The factory exposes these animation hooks on `car.userData`:
 | `wheelRadius`          | Actual tyre radius, `0.365` metres, used to convert driving distance into wheel rotation.                                      |
 | `brakeCalipers`        | Four fixed groups at the wheel centres, independent of wheel rotation.                                                         |
 | `thrusters`            | Eight actuator descriptors in registry order. Surge entries include four rear `outlets`; each outlet has a mesh and direction. |
-| `lights`               | Two headlights and targets, rear spill, lamp materials, and brake-response `update`/`reset` hooks.                             |
+| `lights`               | Two headlights and targets, front/rear lamp materials, and brake-response `update`/`reset` hooks.                              |
 | `bodyBounds`           | Bounds of the car body before the hidden exhaust volumes are added. These are visual bounds, not the collision hull.           |
 | `paintMaterials`       | Body materials used by the reversible damage tint.                                                                             |
 | `markDamaged(boolean)` | Darken and roughen the body, or restore the normal finish.                                                                     |
 
 The app reuses the car across attempts by resetting wheel/light animation and damage state. Separate cars adapted from the same parsed scene have independent geometry, materials and animation state.
 
-`createVehicleLights.js` illuminates the model's white headlamp guides and daytime strip, with two forward-facing spotlights. The red rear blade and a small rear spill brighten with actual grounded `game.braking`; flight controls do not trigger brake lights. Lights and their targets follow the car's pose, and reset restores the normal lamp intensities.
+`createVehicleLights.js` illuminates the model's white headlamp guides and daytime strip, with two forward-facing spotlights. The rear light uses the uploaded model's full-width red blade and its existing `MeshPhysicalMaterial.emissive` colour. Its emission follows the exact geometry of the red strip, remaining visible independently of scene lighting. There is no central rear point light or circular spill. Actual grounded `game.braking` increases `emissiveIntensity` from `TAIL_INTENSITY` to `TAIL_INTENSITY + BRAKE_BOOST`; flight controls do not trigger brake lights. Those constants live at the top of `createVehicleLights.js`, and reset restores the normal lamp intensities.
+
+This uses the standard [Three.js emissive material properties](https://threejs.org/docs/#MeshStandardMaterial.emissive). The model supplies the illuminated strip's shape; no additional light geometry, postprocessing or library is needed.
 
 ## One registry for eight actuator groups
 

@@ -52,7 +52,7 @@ test('smoked headlamp covers reveal the LEDs without changing shared carbon mate
   );
 });
 
-test('front beams and red rear spill use the imported lamp anchors and follow the car', () => {
+test('front beams follow the car while the rear strip emits without a point-light hotspot', () => {
   const { car, white, red, lights } = fixture();
   assert.equal(lights.headlights.length, 2);
   assert.equal(lights.frontMaterials.length, 1, 'shared guides/DRL use one material update');
@@ -65,8 +65,12 @@ test('front beams and red rear spill use the imported lamp anchors and follow th
     assert.ok(light.position.x > 1.9, 'headlights belong at the front lamp assemblies');
     assert.ok(target.position.x > light.position.x && target.position.y < light.position.y);
   }
-  assert.ok(lights.rearLight.position.x < -2.3);
-  assert.equal(lights.rearLight.castShadow, false);
+  const sceneLights = [];
+  car.traverse((part) => {
+    if (part.isLight) sceneLights.push(part);
+  });
+  assert.deepEqual(sceneLights, lights.headlights, 'only the two front beams need light objects');
+  assert.ok(sceneLights.every((light) => light.isSpotLight));
 
   car.rotation.set(0.9, 1.1, 0.4);
   car.updateWorldMatrix(true, true);
@@ -81,13 +85,11 @@ test('front beams and red rear spill use the imported lamp anchors and follow th
 test('rear lamps brighten only for actual contact braking and reset on a new attempt', () => {
   const { red, lights } = fixture();
   const tail = red.emissiveIntensity;
-  const spill = lights.rearLight.intensity;
   lights.update({ stage: 'drive', inContact: true, braking: 0.4 });
   const partial = red.emissiveIntensity;
   assert.ok(partial > tail);
   lights.update({ stage: 'success', inContact: true, braking: 1 });
   assert.ok(red.emissiveIntensity > partial, 'drive-away wheel brakes must light the rear blade');
-  assert.ok(lights.rearLight.intensity > spill);
   lights.reset();
   assert.equal(red.emissiveIntensity, tail);
   for (const state of [
@@ -98,7 +100,6 @@ test('rear lamps brighten only for actual contact braking and reset on a new att
   ]) {
     lights.update(state);
     assert.equal(red.emissiveIntensity, tail);
-    assert.equal(lights.rearLight.intensity, spill);
   }
 });
 

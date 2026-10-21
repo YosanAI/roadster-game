@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Vector3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { THRUSTERS } from '../src/game/thrusters.js';
 import { createEffects } from '../src/scene/createEffects.js';
 import { createRoadster } from '../src/scene/createRoadster.js';
@@ -185,8 +185,14 @@ test('the actual headlamp and rear-blade materials remain connected after batchi
   assert.equal(lights.headlights.length, 2);
   assert.ok(lights.frontMaterials.length > 0 && lights.rearMaterials.length > 0);
   const rendered = new Set();
+  const rearBounds = new Box3();
+  const sceneLights = [];
+  car.updateMatrixWorld(true);
   car.traverse((part) => {
     if (part.isMesh) rendered.add(part.material);
+    if (part.isMesh && lights.rearMaterials.includes(part.material))
+      rearBounds.union(new Box3().setFromObject(part));
+    if (part.isLight) sceneLights.push(part);
   });
   for (const material of [...lights.frontMaterials, ...lights.rearMaterials]) {
     assert.ok(rendered.has(material), 'a lamp must update the material on a retained render mesh');
@@ -201,10 +207,18 @@ test('the actual headlamp and rear-blade materials remain connected after batchi
     sides.add(Math.sign(headlight.position.z));
   }
   assert.equal(sides.size, 2, 'there must be one front beam on each side');
+  assert.ok(rearBounds.max.x < -2.2, 'emission must stay on the rear bodywork');
   assert.ok(
-    lights.rearLight.position.x < -2.3,
-    'red spill must originate behind the rear light blade',
+    rearBounds.min.z < -0.9 && rearBounds.max.z > 0.9,
+    'the actual emissive geometry must span the full-width red line',
   );
+  for (const material of lights.rearMaterials)
+    assert.ok(
+      material.emissive.r > material.emissive.g && material.emissive.r > material.emissive.b,
+      'the full strip must emit red light',
+    );
+  assert.deepEqual(sceneLights, lights.headlights, 'rear emission must not add a point hotspot');
+  assert.ok(sceneLights.every((light) => light.isSpotLight));
   const baseline = lights.rearMaterials.map((material) => material.emissiveIntensity);
   lights.update({ stage: 'success', inContact: true, braking: 1 });
   lights.rearMaterials.forEach((material, index) =>
