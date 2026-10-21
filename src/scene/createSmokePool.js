@@ -100,6 +100,8 @@ const vertexShader = `
   attribute float aTile;
   attribute vec3 aColor;
   attribute float aKind;
+  attribute vec3 aDirection;
+  attribute float aStretch;
   varying vec2 vUv;
   varying float vAlpha;
   varying float vTile;
@@ -108,6 +110,16 @@ const vertexShader = `
   void main() {
     float c = cos(aRotation), s = sin(aRotation);
     vec2 offset = mat2(c, -s, s, c) * position.xy * aSize;
+    if (aKind < 0.5) {
+      vec2 projected = (mat3(viewMatrix) * aDirection).xy;
+      float lengthOnScreen = length(projected);
+      vec2 axis = lengthOnScreen > 0.001 ? projected / lengthOnScreen : vec2(0.0, 1.0);
+      float stretch = 1.0 + (aStretch - 1.0) * lengthOnScreen;
+      offset = (vec2(axis.y, -axis.x) * position.x + axis * position.y * stretch) * aSize;
+    } else if (aKind < 1.5) {
+      // Thin, fast ground sheets rather than tall combustion-smoke billows.
+      offset = vec2(position.x * 1.7, position.y * 0.55) * aSize;
+    }
     vec4 center = viewMatrix * vec4(aOffset, 1.0);
     center.xy += offset;
     gl_Position = projectionMatrix * center;
@@ -145,6 +157,8 @@ const fragmentShader = `
 export function createSmokePool(scene, capacity = 2048) {
   const positions = new Float32Array(capacity * 3);
   const velocities = new Float32Array(capacity * 3);
+  const directions = new Float32Array(capacity * 3);
+  const delay = new Float32Array(capacity);
   const life = new Float32Array(capacity);
   const duration = new Float32Array(capacity);
   const size = new Float32Array(capacity);
@@ -169,6 +183,8 @@ export function createSmokePool(scene, capacity = 2048) {
     aTile: 1,
     aColor: 3,
     aKind: 1,
+    aDirection: 3,
+    aStretch: 1,
   })) {
     geometry.setAttribute(
       name,
@@ -204,6 +220,11 @@ export function createSmokePool(scene, capacity = 2048) {
     velocities[j] = velocity.x;
     velocities[j + 1] = velocity.y;
     velocities[j + 2] = velocity.z;
+    const direction = options.direction;
+    directions[j] = direction?.x || 0;
+    directions[j + 1] = direction?.y || 0;
+    directions[j + 2] = direction?.z || 0;
+    delay[i] = options.delay || 0;
     life[i] = duration[i] = options.life;
     size[i] = options.size;
     opacity[i] = options.alpha;
@@ -223,27 +244,39 @@ export function createSmokePool(scene, capacity = 2048) {
     const view = camera?.matrixWorldInverse.elements;
     for (let i = 0; i < capacity; i++) {
       if (life[i] <= 0) continue;
-      life[i] = Math.max(0, life[i] - dt);
+      const step = Math.max(0, dt - delay[i]);
+      delay[i] = Math.max(0, delay[i] - dt);
+      life[i] = Math.max(0, life[i] - step);
       if (life[i] <= 0) continue;
       const j = i * 3;
       const ground = kinds[i] === 1;
-      const drag = Math.exp(-dt * (ground ? 0.85 : 1.35));
+      const jet = kinds[i] === 0;
+      const drag = Math.exp(-step * (ground ? 1.35 : jet ? 1.8 : 1.35));
       const age = duration[i] - life[i];
-      // Decelerating jets entrain air; ground outwash curls upward around the car.
+      // Fast air jets break into thin wisps. Ground wash runs outward instead
+      // of building a buoyant, opaque column like hot fire smoke.
       velocities[j] *= drag;
       velocities[j + 2] *= drag;
-      velocities[j + 1] = velocities[j + 1] * drag + dt * (ground ? 0.5 : 0.42);
+      velocities[j + 1] = velocities[j + 1] * drag + step * (ground ? 0.08 : jet ? 0.04 : 0.42);
       const phase = tiles[i] * 1.7 + age * 1.6;
-      const turbulence = ground ? 0.36 : 0.22;
-      positions[j] += (velocities[j] + Math.sin(phase + positions[j + 2]) * turbulence + 0.12) * dt;
-      positions[j + 1] += velocities[j + 1] * dt;
-      positions[j + 2] += (velocities[j + 2] + Math.cos(phase + positions[j]) * turbulence) * dt;
-      // Exhaust that actually reaches the road rolls along it instead of vanishing.
+      const turbulence = ground ? 0.65 : jet ? 0.35 : 0.22;
+      positions[j] +=
+        (velocities[j] + Math.sin(phase + positions[j + 2]) * turbulence + 0.12) * step;
+      positions[j + 1] += velocities[j + 1] * step;
+      positions[j + 2] += (velocities[j + 2] + Math.cos(phase + positions[j]) * turbulence) * step;
+      // The road redirects a jet into outward wash. Bouncing its vertical
+      // velocity would send unnatural smoke spikes back up through the car.
       if (positions[j + 1] < 0.15) {
         positions[j + 1] = 0.15;
-        velocities[j + 1] = Math.abs(velocities[j + 1]) * 0.12;
+        velocities[j + 1] = 0.1;
+        if (jet) {
+          kinds[i] = 1;
+          opacity[i] *= 0.45;
+          velocities[j] += Math.cos(phase) * 7;
+          velocities[j + 2] += Math.sin(phase) * 7;
+        }
       }
-      rotation[i] += spin[i] * dt;
+      rotation[i] += spin[i] * step;
       depths[i] = view
         ? view[2] * positions[j] +
           view[6] * positions[j + 1] +
@@ -260,20 +293,33 @@ export function createSmokePool(scene, capacity = 2048) {
       const age = duration[i] - life[i];
       const progress = age / duration[i];
       const ground = kinds[i] === 1;
-      const fadeIn = THREE.MathUtils.smoothstep(age, 0, ground ? 0.18 : 0.09);
-      const fadeOut = 1 - THREE.MathUtils.smoothstep(progress, 0.35, 1);
+      const jet = kinds[i] === 0;
+      const fadeIn = THREE.MathUtils.smoothstep(age, 0, ground ? 0.08 : 0.025);
+      const fadeOut = 1 - THREE.MathUtils.smoothstep(progress, jet ? 0.08 : 0.12, 1);
       const j = i * 3;
       attributes.aOffset.setXYZ(slot, positions[j], positions[j + 1], positions[j + 2]);
-      attributes.aSize.setX(slot, size[i] + age * (ground ? 0.72 : 0.68));
+      attributes.aSize.setX(slot, size[i] + age * (ground ? 1.05 : jet ? 0.4 : 0.68));
       attributes.aAlpha.setX(slot, clamp(opacity[i] * fadeIn * fadeOut, 0, 1));
       attributes.aRotation.setX(slot, rotation[i]);
       attributes.aTile.setX(slot, tiles[i]);
       attributes.aKind.setX(slot, kinds[i]);
+      attributes.aDirection.setXYZ(slot, directions[j], directions[j + 1], directions[j + 2]);
+      attributes.aStretch.setX(slot, jet ? 1.3 + 5.5 * Math.exp(-age * 4) : 1);
       const shade = shades[i];
       attributes.aColor.setXYZ(slot, shade * 0.96, shade * 0.985, shade);
     }
     geometry.instanceCount = active.length;
-    for (const name of ['aOffset', 'aSize', 'aAlpha', 'aRotation', 'aTile', 'aColor', 'aKind']) {
+    for (const name of [
+      'aOffset',
+      'aSize',
+      'aAlpha',
+      'aRotation',
+      'aTile',
+      'aColor',
+      'aKind',
+      'aDirection',
+      'aStretch',
+    ]) {
       const attribute = attributes[name];
       attribute.clearUpdateRanges();
       if (active.length > 0) {
@@ -286,6 +332,7 @@ export function createSmokePool(scene, capacity = 2048) {
 
   function reset() {
     life.fill(0);
+    delay.fill(0);
     active.length = 0;
     geometry.instanceCount = 0;
     cursor = elapsed = 0;

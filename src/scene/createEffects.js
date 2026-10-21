@@ -157,11 +157,12 @@ function createParticlePool(scene, count, { additive, name, flatten = 1 }) {
 /**
  * Reads the eight actual actuator outputs in registry order. The renderer never
  * invents stabilizing jets, reverses an upward lift, or turns road brakes into
- * exhaust. Each output drives only its own fixed car-local emitter.
+ * exhaust. A surge output is distributed over four balanced rear outlets;
+ * reverse deflects their exhaust outward/forward instead of using a nose jet.
  *
  * Textured, depth-sorted smoke billboards share one fixed GPU pool. Ground
  * outwash is emitted at exhaust/ground intersections during the burn and curls
- * up around the car, lingering for 4.5–6 seconds after emission. Separate small
+ * outward in thin, fast sheets, lingering for 2.4–3.6 seconds. Separate small
  * point pools preserve the fast sparks and one-shot touchdown debris.
  *
  * @param {THREE.Scene} scene The scene receiving the reusable particle objects.
@@ -181,6 +182,8 @@ export function createEffects(scene) {
   const velocity = new THREE.Vector3();
   const origin = new THREE.Vector3();
   const direction = new THREE.Vector3();
+  const lastOrigin = new THREE.Vector3();
+  const emitterVelocity = new THREE.Vector3();
   const impactPoint = new THREE.Vector3();
   const smokeOrigin = new THREE.Vector3();
   let boundCar = null;
@@ -188,6 +191,8 @@ export function createEffects(scene) {
   let emissionCredit = new Float32Array(0);
   let groundCredit = new Float32Array(0);
   let previousLevels = new Float32Array(0);
+  let previousOrigins = new Float64Array(0);
+  let hasOrigin = new Uint8Array(0);
   let elapsed = 0;
   let smokeTime = 0;
   let smokeCredit = 0;
@@ -197,28 +202,36 @@ export function createEffects(scene) {
   function bind(car) {
     if (car === boundCar) return;
     boundCar = car;
-    emitters = car?.userData?.thrusters || [];
+    emitters = (car?.userData?.thrusters || []).flatMap((emitter, actuatorIndex) =>
+      (emitter.outlets || [emitter]).map((outlet) => ({
+        ...outlet,
+        actuatorIndex,
+        emissionShare: 1 / (emitter.outlets?.length || 1),
+      })),
+    );
     emissionCredit = new Float32Array(emitters.length);
     groundCredit = new Float32Array(emitters.length);
     previousLevels = new Float32Array(emitters.length);
+    previousOrigins = new Float64Array(emitters.length * 3);
+    hasOrigin = new Uint8Array(emitters.length);
   }
 
   function emitGroundMist(level, closeness) {
     const angle = Math.random() * Math.PI * 2;
-    const spread = (1.0 + level * 3.0) * (0.55 + Math.random() * 0.6);
+    const spread = (6 + level * 7) * (0.7 + Math.random() * 0.6);
     point.copy(impactPoint);
     point.x += (Math.random() - 0.5) * 0.35;
-    point.y = 0.22 + Math.random() * 0.2;
+    point.y = 0.16 + Math.random() * 0.12;
     point.z += (Math.random() - 0.5) * 0.35;
     velocity.set(
       Math.cos(angle) * spread + direction.x * 1.5,
-      0.65 + Math.random() * 1.1,
+      0.15 + Math.random() * 0.5,
       Math.sin(angle) * spread + direction.z * 1.5,
     );
     smoke.spawn(point, velocity, {
-      life: 4.5 + Math.random() * 1.5,
-      size: 0.7 + Math.random() * 0.55 + closeness * 0.3,
-      alpha: (0.6 + level * 0.22) * (0.55 + closeness * 0.45),
+      life: 2.4 + Math.random() * 1.2,
+      size: 0.45 + Math.random() * 0.4 + closeness * 0.2,
+      alpha: (0.12 + level * 0.1) * (0.55 + closeness * 0.45),
       kind: 1,
     });
   }
@@ -247,10 +260,22 @@ export function createEffects(scene) {
       for (let i = 0; i < emitters.length; i++) {
         const emitter = emitters[i];
         const plume = emitter.mesh;
-        const rawLevel = game.thrusterLevels?.[i];
+        const rawLevel = game.thrusterLevels?.[emitter.actuatorIndex];
         const level = Number.isFinite(rawLevel) ? clamp(rawLevel, 0, 1) : 0;
         const wasActive = previousLevels[i] > 0.0001;
         previousLevels[i] = level;
+        origin.copy(plume.position).applyMatrix4(car.matrixWorld);
+        if (hasOrigin[i]) {
+          lastOrigin.fromArray(previousOrigins, i * 3);
+          emitterVelocity.subVectors(origin, lastOrigin).divideScalar(dt);
+        } else {
+          emitterVelocity.copy(game.velocity || { x: 0, y: 0, z: 0 });
+          lastOrigin.copy(origin).addScaledVector(emitterVelocity, -dt);
+        }
+        previousOrigins[i * 3] = origin.x;
+        previousOrigins[i * 3 + 1] = origin.y;
+        previousOrigins[i * 3 + 2] = origin.z;
+        hasOrigin[i] = 1;
         plume.visible = level > 0.0001;
         if (!plume.visible) {
           emissionCredit[i] = 0;
@@ -258,9 +283,8 @@ export function createEffects(scene) {
           continue;
         }
 
-        // Emitter positions and directions remain exactly as supplied by the
-        // shared registry. Only their visible output and plume size vary.
-        origin.copy(plume.position).applyMatrix4(car.matrixWorld);
+        // Outlets retain their fixed car-local direction. The four rear outlets
+        // represent the same aggregate surge force as the simulation actuator.
         direction.copy(emitter.direction).transformDirection(car.matrixWorld);
         const rayDistance =
           direction.y < -0.015 && origin.y > 0 ? -origin.y / direction.y : Infinity;
@@ -268,40 +292,53 @@ export function createEffects(scene) {
         const hitsGround = rayDistance > 0 && rayDistance <= range;
         const closeness = hitsGround ? 1 - rayDistance / range : 0;
         const flicker = 1 + Math.sin(elapsed * 57 + i * 2.31) * 0.07;
-        const width = 0.12 + Math.sqrt(level) * 0.75;
+        const width = 0.1 + Math.sqrt(level * emitter.emissionShare) * 0.5;
         // Keep only a short translucent nozzle core; textured smoke forms the plume.
-        const jetLength = (0.12 + level * 0.65) * flicker;
+        const jetLength = (0.15 + level * 1.25) * flicker;
         plume.scale.set(width, hitsGround ? Math.min(jetLength, rayDistance) : jetLength, width);
-        plume.material.opacity = 0.025 + level * 0.1;
+        plume.material.opacity = 0.015 + level * 0.06;
 
         // Pooled emission rates use accumulated seconds, so the same actuator
         // burn produces the same average density at different render rates.
-        emissionCredit[i] += dt * 58 * level;
+        // Splitting a channel over four narrower rear outlets still needs
+        // enough samples per outlet to keep a 50 m/s jet connected.
+        const rate = 240 * level * Math.sqrt(emitter.emissionShare);
+        emissionCredit[i] += dt * rate;
         if (!wasActive) emissionCredit[i] = Math.max(1, emissionCredit[i]);
         while (emissionCredit[i] >= 1) {
           emissionCredit[i] -= 1;
+          // Distribute births over the frame's moving nozzle path. Every puff
+          // inherits the full nozzle velocity, so a fast falling car still
+          // leaves a continuous jet instead of isolated frame-spaced clusters.
+          const age = clamp((emissionCredit[i] + (Math.random() - 0.5) * 0.5) / rate, 0, dt);
           point
-            .copy(origin)
-            .addScaledVector(direction, Math.min(0.1 + Math.random() * 0.22, rayDistance * 0.6));
-          point.x += (Math.random() - 0.5) * 0.09;
-          point.y += (Math.random() - 0.5) * 0.09;
-          point.z += (Math.random() - 0.5) * 0.09;
-          velocity.copy(direction).multiplyScalar(6 + level * 7);
-          if (game.velocity) velocity.addScaledVector(game.velocity, 0.65);
-          velocity.x += (Math.random() - 0.5) * 0.65;
-          velocity.y += (Math.random() - 0.5) * 0.65;
-          velocity.z += (Math.random() - 0.5) * 0.65;
+            .lerpVectors(lastOrigin, origin, 1 - age / dt)
+            .addScaledVector(direction, Math.min(0.04 + Math.random() * 0.06, rayDistance * 0.6));
+          point.x += (Math.random() - 0.5) * 0.04;
+          point.y += (Math.random() - 0.5) * 0.04;
+          point.z += (Math.random() - 0.5) * 0.04;
+          velocity
+            .copy(direction)
+            .multiplyScalar(34 + level * 16)
+            .add(emitterVelocity);
+          velocity.x += (Math.random() - 0.5) * 1.2;
+          velocity.y += (Math.random() - 0.5) * 1.2;
+          velocity.z += (Math.random() - 0.5) * 1.2;
+          const wisp = Math.random() < 0.15;
           smoke.spawn(point, velocity, {
-            life: 2.2 + Math.random() * 0.9,
-            size: 0.32 + Math.random() * 0.2,
-            alpha: 0.45 + level * 0.25,
+            life: wisp ? 1.3 + Math.random() * 0.5 : 0.65 + Math.random() * 0.5,
+            size: (0.13 + Math.random() * 0.08) * Math.sqrt(emitter.emissionShare),
+            alpha: (wisp ? 0.06 : 0.15) + level * 0.08,
             kind: 0,
+            direction,
+            delay: dt - age,
           });
         }
 
         if (hitsGround) {
           impactPoint.copy(origin).addScaledVector(direction, rayDistance);
-          groundCredit[i] += dt * (12 + level * 50) * (0.25 + closeness * 0.75);
+          groundCredit[i] +=
+            dt * (8 + level * 30) * (0.25 + closeness * 0.75) * emitter.emissionShare;
           // A first wisp appears immediately when an active jet reaches the
           // asphalt, including burns made while the vehicle is still airborne.
           if (!wasActive) groundCredit[i] = Math.max(1, groundCredit[i]);
@@ -412,6 +449,7 @@ export function createEffects(scene) {
     emissionCredit.fill(0);
     groundCredit.fill(0);
     previousLevels.fill(0);
+    hasOrigin.fill(0);
     for (const emitter of emitters) {
       emitter.mesh.visible = false;
       emitter.mesh.scale.set(1, 1, 1);

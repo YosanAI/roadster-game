@@ -4,7 +4,7 @@ import { FlightGame, GRAVITY } from '../src/game/FlightGame.js';
 import { advanceSimulation } from '../src/game/advanceSimulation.js';
 
 function freeFall() {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   game.stage = 'flight';
   game.inContact = false;
   game.position.set(-10, 40, 0);
@@ -36,8 +36,8 @@ test('pause stops physics, and optional half-speed affects flight only', () => {
   near(flight.velocity.y, -GRAVITY * 0.5);
   near(flight.position.y, 40 - 0.5 * GRAVITY * 0.5 ** 2);
 
-  const normalDrive = new FlightGame();
-  const slowDrive = new FlightGame();
+  const normalDrive = new FlightGame({ flightAssist: false });
+  const slowDrive = new FlightGame({ flightAssist: false });
   normalDrive.start();
   slowDrive.start();
   advanceSimulation(normalDrive, { throttle: 1 }, 1);

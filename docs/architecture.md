@@ -4,7 +4,7 @@ The repository uses native JavaScript modules. Vite handles the development serv
 
 ## Ownership of state
 
-`FlightGame` is the authoritative game state. It owns pose, linear and angular velocity, contact, stage, driving speed, fuel, eight nozzle levels and the landing result. It imports Three.js math primitives but never accesses the DOM, a renderer, an audio context or browser timing.
+`FlightGame` is the authoritative game state. It owns pose, linear and angular velocity, contact, stage, driving speed, fuel, eight actuator levels, side-assist state and the landing result. It imports Three.js math primitives but never accesses the DOM, a renderer, an audio context or browser timing.
 
 `app.js` assembles the components and owns presentation lifecycle: attempts, the result delay, pause, optional slow motion and the frame clock. It copies the physics pose to the rendered car. Scene modules never integrate vehicle motion themselves.
 
@@ -28,7 +28,7 @@ Physics consumes real elapsed time at low frame rates. Optional slow motion scal
 
 `config.js` contains SI-unit parameters and game limits. `track.js` builds the contact path from the course dimensions. The rendered ramp also uses the shared course values, while its trusses, platform details and markings remain procedural art geometry.
 
-`thrusters.js` is the shared nozzle registry. Each entry contains a local position, local force direction, nozzle kind and maximum force. Physics sums the resulting force and `position × force` torque. The car builder places the matching emitter in the same order, with its visible exhaust pointing opposite the force. Effects change intensity according to actual output; they do not invent extra roll or brake jets.
+`thrusters.js` is the shared nozzle registry. Each entry contains a local position, local force direction, nozzle kind and maximum force. Physics sums the resulting force and `position × force` torque. The car builder keeps the actuator descriptors in the same order. Lift/side entries have one emitter each; each surge entry has four rear outlets for the aggregate force, with reverse using balanced exhaust deflection. Effects change intensity according to actual output; they do not invent extra roll or brake jets.
 
 ## Extending the game
 

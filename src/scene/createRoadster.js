@@ -412,8 +412,8 @@ export function createRoadster({ color = 0xf2f3ed, detailed = true } = {}) {
     addBox([0.027, 0.1, 0.4], carbon, [-2.355, -0.145, 0]);
   }
 
-  // Decorative rear outlet housings from the reference vehicle. These are part
-  // of the bodywork, separate from the eight active flight units below.
+  // Four rear propulsion outlets. The solver models their balanced resultant
+  // as one surge actuator; reverse uses outward-facing deflectors at the rear.
   const nozzleShells = [],
     nozzleHoles = [];
   for (const z of [-0.69, -0.25, 0.25, 0.69]) {
@@ -445,20 +445,32 @@ export function createRoadster({ color = 0xf2f3ed, detailed = true } = {}) {
     blending: THREE.AdditiveBlending,
     toneMapped: false,
   });
-  function addThrusterPlume(definition) {
+  function addThrusterPlume(definition, position = definition.position, exhaust, suffix = '') {
     const m = new THREE.Mesh(plumeGeometry, plumeMaterial.clone());
-    m.position.set(...definition.position);
-    // The visible nozzle and the physics share one registry. Every plume
-    // points opposite its unit's force, including all four upward-only lifts.
-    const d = new THREE.Vector3(...definition.forceDirection).negate().normalize();
+    m.position.set(...position);
+    const d = exhaust || new THREE.Vector3(...definition.forceDirection).negate().normalize();
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), d);
     m.visible = false;
-    m.name = `${definition.id}-plume`;
+    m.name = `${definition.id}${suffix}-plume`;
     car.add(m);
-    car.userData.thrusters.push({ ...definition, mesh: m, direction: d });
-    return m;
+    return { mesh: m, direction: d };
   }
-  for (const definition of THRUSTERS) addThrusterPlume(definition);
+  for (const definition of THRUSTERS) {
+    if (definition.axis === 'surge') {
+      const reversing = definition.commandSign < 0;
+      const outlets = [-0.69, -0.25, 0.25, 0.69].map((z, i) =>
+        addThrusterPlume(
+          definition,
+          [-2.405, -0.235, z],
+          new THREE.Vector3(reversing ? 1 : -1, 0, reversing ? Math.sign(z) * 1.7 : 0).normalize(),
+          `-${i + 1}`,
+        ),
+      );
+      car.userData.thrusters.push({ ...definition, ...outlets[0], outlets });
+    } else {
+      car.userData.thrusters.push({ ...definition, ...addThrusterPlume(definition) });
+    }
+  }
 
   // Damage tint is reversible; restarting reuses this car and its geometries.
   car.userData.paintMaterials = [paint, archPaint, haunchPaint];

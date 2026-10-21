@@ -1,6 +1,6 @@
 # Roadster / Controlled Fall
 
-A complete **Three.js + vanilla JavaScript** game. Drive up a suction-assisted reverse-C ramp, leave the inverted lip, roll upright using lift pairs, and control the fall with eight fixed thrusters.
+A complete **Three.js + vanilla JavaScript** game. Drive up a suction-assisted reverse-C ramp, leave the inverted lip, roll upright using lift pairs, and control the fall with lift jets, four rear propulsion outlets and automatic side-drift assistance. Roll and lift remain manual.
 
 This is the editable source repository for the current game, organized for continued development. The car, ramp, lighting, vapor and audio are procedural; no model downloads, API keys or backend are required.
 
@@ -70,7 +70,7 @@ Three.js is the only runtime package. The physics is a small, explicit JavaScrip
 | `src/game/config.js`               | Gravity, vehicle parameters, course dimensions and damage limits   |
 | `src/game/FlightGame.js`           | Driving, flight, fuel, collisions, landing decisions and telemetry |
 | `src/game/track.js`                | Contact path, tangent, curvature and departure edge                |
-| `src/game/thrusters.js`            | Eight fixed nozzle definitions and force/torque summation          |
+| `src/game/thrusters.js`            | Eight actuator groups and force/torque summation                   |
 | `src/game/advanceSimulation.js`    | Real-time frame advancement, pause and optional slow motion        |
 | `src/input/InputController.js`     | Keyboard, simultaneous touch buttons and mode transitions          |
 | `src/camera/CameraRig.js`          | Event/tracking/side cameras, orbiting, zoom and framing            |
@@ -89,7 +89,7 @@ Three.js is the only runtime package. The physics is a small, explicit JavaScrip
 
 Start with **`src/game/config.js`** for gravity, mass, motor power, suction, braking, damage tolerance and course dimensions. SI units are documented beside the values.
 
-Edit **`src/game/thrusters.js`** for nozzle positions, directions and maximum force. The simulation and visible jets share this registry, so changing it updates both. The invariant is four local +Y lift units and four local X/Z horizontal units.
+Edit **`src/game/thrusters.js`** for nozzle positions, directions and maximum force. The solver uses four local +Y lift groups and four local X/Z horizontal control groups. Each forward/reverse surge group drives the four rear outlets, with reverse represented by outward/forward exhaust deflection. See the rendering documentation for outlet positions.
 
 Edit **`src/input/InputController.js`** to change keyboard mappings or add an input source. `FlightGame` accepts numeric commands and does not know whether they came from a keyboard, a touch screen or a test pilot.
 
@@ -101,18 +101,18 @@ The scene modules use named helpers and sections for materials, body panels, whe
 
 Choose **Start driving**, then press the pedal. Suction holds the tyres to the road, wall and inverted lip. Use the brake to manage departure speed. Controls automatically change when the trailing wheels leave the edge.
 
-| Mode    | Action                    | Keyboard                     |
-| ------- | ------------------------- | ---------------------------- |
-| Driving | Pedal                     | W / up arrow                 |
-| Driving | Wheel brake               | S / down arrow / Space       |
-| Flight  | Roll left / right         | Q / E                        |
-| Flight  | Lift                      | Space                        |
-| Flight  | Forward / backward thrust | W / S or up / down arrows    |
-| Flight  | Left / right thrust       | A / D or left / right arrows |
+| Mode    | Action                         | Keyboard                     |
+| ------- | ------------------------------ | ---------------------------- |
+| Driving | Pedal                          | W / up arrow                 |
+| Driving | Wheel brake                    | S / down arrow / Space       |
+| Flight  | Roll left / right              | Q / E                        |
+| Flight  | Lift                           | Space                        |
+| Flight  | Forward / backward thrust      | W / S or up / down arrows    |
+| Flight  | Override automatic side thrust | A / D or left / right arrows |
 
 The on-screen buttons support simultaneous holds. A held driving key must be released before it can activate a flight jet. Other shortcuts and the exact input behavior are in [Controls](docs/controls.md).
 
-For a first attempt, approach the edge around 30 km/h, roll upright after departure, then pulse lift and counter the horizontal drift. Releasing a roll button commands a real counter-roll burn from the opposite lift pair; it does not automatically level the car.
+For a first attempt, approach the edge around 30 km/h, roll upright after departure, then pulse lift and brake forward/backward drift. The computer cancels sideways drift; the SIDE ASSIST indicator and green side controls show when it fires. Manual A/D input overrides that assistance. Releasing a roll button commands a real counter-roll burn from the opposite lift pair; it does not automatically level the car.
 
 A safe landing displays **Landed safe. More levels coming soon.** A damaging landing displays **Game over.**, its cause, impact speed and tilt. Retry from the top starts stopped on the inverted lip; replay starts from the road.
 
@@ -120,7 +120,7 @@ A safe landing displays **Landed safe. More levels coming soon.** A damaging lan
 
 Gravity is exactly **9.8 m/s²**, with real time enabled by default on all devices. Contact driving integrates motor force over mass with traction/power limits, drag, rolling resistance, brakes and tangential gravity. Departure preserves actual tangent velocity.
 
-The four lift nozzles can only push along the car's local +Y direction. LIFT engages them together; roll creates a left/right difference, and the opposite pair stops the spin. Four fixed horizontal nozzles supply forward, backward, left and right forces along local X/Z. A banked sideways nozzle follows the banked car. Pitch and yaw rotation are constrained during flight.
+The four lift nozzles can only push along the car's local +Y direction. LIFT engages them together; roll creates a left/right difference, and the opposite pair stops the spin. Four horizontal control groups supply forward, backward, left and right forces along local X/Z. Forward thrust uses four rear outlets; reverse redirects their gas forward/outward. Side assistance commands the real side valves and consumes gas. A banked sideways nozzle follows the banked car. Pitch and yaw rotation are constrained during flight.
 
 This is a focused stunt-game model: driving follows a sampled ramp path, airborne attitude is roll-only, and vehicle force parameters are gameplay values. Course geometry and the procedural car approximate the event reference. Detailed formulas, state/API contracts, numerical integration, constraints and damage rules are in [Physics](docs/physics.md).
 
@@ -132,9 +132,9 @@ npm run check
 npm run build
 ```
 
-The physics suite covers the eight nozzle directions, exact gravity, gradual driving acceleration, braking/holding, wall rollback, contact loss, force and torque from roll, counter-roll fuel use, disabled pitch, collisions, damage thresholds and complete successful digital-control flights at several update rates. Clock tests cover uneven render timing, pause/slow behavior and input clearing within a frame. Input tests cover key mappings and the held-pedal handoff.
+The physics suite covers the eight nozzle directions, exact gravity, gradual driving acceleration, braking/holding, wall rollback, contact loss, force and torque from roll, counter-roll fuel use, disabled pitch, collisions, damage thresholds and complete successful digital-control flights at several update rates. Clock tests cover uneven render timing, pause/slow behavior and input clearing within a frame. Input tests cover key mappings and the held-pedal handoff. Additional suites cover side assistance, its HUD indicators, moving-nozzle jet continuity, rear outlet groups and vapor persistence.
 
-For the repository refactor, numerical state was compared with the published game across **1,901 snapshots**, including full safe flights and a crash/reset sequence, with exact matches. Car and environment geometry/material/instance data and deterministic particle states also matched. Interactive browser rendering and device touch playtests were unavailable in the preparation environment; the automated checks cover the source and simulation boundaries described above.
+For the repository refactor, numerical state was compared with the published game across **1,901 snapshots**, including full safe flights and a crash/reset sequence, with exact matches. Car and environment geometry/material/instance data and deterministic particle states also matched. Recent effects and control changes were also checked with headless Chromium, including mobile viewport emulation. Physical-device playtesting remains separate from those browser checks.
 
 ## Further documentation
 

@@ -48,7 +48,7 @@ function digitalDriver() {
 }
 
 function manualDeparture(dt = STEP) {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   assert.equal(game.start(), true);
   until(game, (g) => !g.inContact, digitalDriver(), dt);
   assert.equal(game.stage, 'flight');
@@ -56,13 +56,13 @@ function manualDeparture(dt = STEP) {
 }
 
 function atTop() {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   game.resetAtTop();
   return game;
 }
 
 function falling({ inverted = false, x = -10, y = 12, z = 0 } = {}) {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   game.stage = 'flight';
   game.inContact = false;
   game.position.set(x, y, z);
@@ -116,7 +116,7 @@ function digitalFlightPilot(direction = 1) {
   return control;
 }
 
-test('exactly eight fixed nozzles have the required one-way directions', () => {
+test('eight actuator groups have the required one-way resultant force directions', () => {
   assert.equal(THRUSTERS.length, 8);
   assert.equal(new Set(THRUSTERS.map((t) => t.id)).size, 8);
   assert.equal(THRUSTERS.filter((t) => t.kind === 'lift').length, 4);
@@ -142,7 +142,7 @@ test('gravity alone is exactly 9.8 m/s² with no departure kick or time scaling'
 });
 
 test('start waits for the accelerator and pedal force increases speed gradually', () => {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   game.start();
   run(game, 3);
   assert.equal(game.stage, 'drive');
@@ -160,7 +160,7 @@ test('start waits for the accelerator and pedal force increases speed gradually'
 });
 
 test('brakes stop the moving car and hold it still', () => {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   game.start();
   run(game, 0.8, { throttle: 1 });
   assert.ok(game.driveSpeed > 8);
@@ -172,7 +172,7 @@ test('brakes stop the moving car and hold it still', () => {
 });
 
 test('gravity acts along the climb, while wheel brakes can hold the car on the wall', () => {
-  const game = new FlightGame();
+  const game = new FlightGame({ flightAssist: false });
   game.start();
   until(game, (g) => g.position.y > 8, digitalDriver());
   run(game, 0.8, { brake: 1 });

@@ -109,7 +109,9 @@
         <div class="eyebrow">A THRUSTER LANDING CHALLENGE</div>
         <h1>Controlled<br /><span>fall.</span></h1>
         <p>Drive up the wall. Leave the edge.<br />Bring it back on four wheels.</p>
-        <button id="start" class="primary">START DRIVING <span aria-hidden="true">↗</span></button>
+        <button id="start" class="primary">
+          START FROM GROUND <span aria-hidden="true">↗</span>
+        </button>
         <div class="intro-limits">
           <span>15° <small>TILT LIMIT</small></span
           ><i></i><span>5.0 <small>m/s IMPACT LIMIT</small></span>
@@ -144,6 +146,10 @@
       </section>
 
       <section id="flight-controls" class="flight-controls" aria-label="Thruster controls" hidden>
+        <div id="assist-indicator" class="assist-indicator" role="status" aria-live="polite">
+          <span class="assist-dot" aria-hidden="true"></span>
+          <span id="assist-status">SIDE ASSIST · MONITORING</span>
+        </div>
         <div class="control-group roll-group">
           <span class="control-label">ROLL</span>
           <div class="button-row">
@@ -158,7 +164,7 @@
           </div>
         </div>
         <div class="control-group horizontal-group">
-          <span class="control-label">HORIZONTAL</span>
+          <span class="control-label">THRUST / SIDE AUTO</span>
           <div class="direction-grid">
             <button
               class="control-button direction-forward"
@@ -169,9 +175,10 @@
               ><span class="control-name">FORWARD</span><kbd>W</kbd>
             </button>
             <button
-              class="control-button direction-left"
+              id="assist-strafe-left"
+              class="control-button direction-left assisted-control"
               data-action="strafe-left"
-              aria-label="Thrust left, hold A or left arrow"
+              aria-label="Override automatic side thrust: thrust left, hold A or left arrow"
             >
               <span class="control-symbol" aria-hidden="true">←</span
               ><span class="control-name">LEFT</span><kbd>A</kbd>
@@ -185,9 +192,10 @@
               ><span class="control-name">BACK</span><kbd>S</kbd>
             </button>
             <button
-              class="control-button direction-right"
+              id="assist-strafe-right"
+              class="control-button direction-right assisted-control"
               data-action="strafe-right"
-              aria-label="Thrust right, hold D or right arrow"
+              aria-label="Override automatic side thrust: thrust right, hold D or right arrow"
             >
               <span class="control-symbol" aria-hidden="true">→</span
               ><span class="control-name">RIGHT</span><kbd>D</kbd>
@@ -224,14 +232,16 @@
             ><small>LIMIT 15°</small>
           </div>
         </div>
+        <button id="replay" class="primary">
+          START FROM GROUND <span aria-hidden="true">↺</span>
+        </button>
         <button
           id="retry"
-          class="primary"
+          class="text-button"
           title="Start stopped on the inverted lip, then pedal to the edge"
         >
-          RETRY FROM THE TOP <span aria-hidden="true">↗</span>
+          Retry from the top <span aria-hidden="true">↗</span>
         </button>
-        <button id="replay" class="text-button">Drive from the road <span>↺</span></button>
       </section>
 
       <footer class="bottom-bar">
@@ -272,14 +282,17 @@
           <li>
             <b>Land softly.</b> Hold <kbd>SPACE</kbd> to fire all four lift jets. They push in the
             car’s up direction, with exhaust below the wheels. Use short pulses to slow the fall,
-            and <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys to move forward,
-            left, back, or right relative to the car.
+            and <kbd>W</kbd>/<kbd>S</kbd> or the up/down arrows to control forward/backward drift.
+            The computer checks sideways drift automatically; green LEFT / RIGHT controls show its
+            corrections. Hold <kbd>A</kbd>/<kbd>D</kbd> to override. Side assist uses the same gas
+            reserve; you still control roll and the landing.
           </li>
         </ol>
         <div class="help-controls">
           <span><kbd>W</kbd> <kbd>S</kbd> Pedal / brake on road</span
           ><span><kbd>Q</kbd> <kbd>E</kbd> Roll in flight</span
-          ><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Horizontal thrust</span
+          ><span><kbd>A</kbd> <kbd>D</kbd> Override auto side thrust</span
+          ><span><kbd>W</kbd> <kbd>S</kbd> Forward / backward thrust</span
           ><span><kbd>SPACE</kbd> Lift in flight</span><span><kbd>T</kbd> Optional slow motion</span
           ><span><kbd>R</kbd> Retry</span>
         </div>

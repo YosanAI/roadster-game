@@ -5,7 +5,7 @@ the player drives using the pedal and brake. Once the trailing axle clears the
 inverted lip, suction ends and the interface switches to flight controls. There
 is no separate release action.
 
-The starting screen has an **EVENT** camera overview. Select **START DRIVING**
+The starting screen has an **EVENT** camera overview. Select **START FROM GROUND**
 or press **Enter** to begin. The car starts stationary and the camera switches to
 **TRACKING**. Hold the pedal to drive along the road, up the curved wall, and
 along the underside of the top lip. Brake to control the departure speed. After
@@ -29,8 +29,9 @@ the fixed course centerline; there is no steering input during contact.
 ## Flight controls
 
 These controls become available in the `flight` stage. Hold a button or key to
-request thrust, and release it to stop that request. Roll has an automatic
-counter-thrust response described below.
+request thrust, and release it to stop that request. Side assist automatically
+checks sideways drift; roll stays manual, with the counter-thrust response
+described below.
 
 | Action          | Keyboard       | Touch or mouse | Input field   |
 | --------------- | -------------- | -------------- | ------------- |
@@ -49,11 +50,26 @@ world. Lift always pushes through the car's roof direction. While the car is
 fully inverted, that direction points toward the ground; roll upright before
 using lift to slow the fall.
 
+### Automatic side assist
+
+The computer cancels sideways drift during flight by firing the actual left/right
+jets. The **SIDE ASSIST** strip identifies its correction direction, and the
+corresponding **LEFT** or **RIGHT** control glows green while the computer is
+firing it. With no correction needed, the strip shows **MONITORING**. This is
+flight assistance, not an automatic landing: roll with Q/E, control descent with
+LIFT, and brake forward/backward travel with W/S.
+
+Hold A/D, a left/right arrow, or a side button to override the computer on that
+axis. Release to return side control to the computer. Assistance uses the shared
+gas reserve and cannot produce thrust when the tank is empty. It does not change
+the contact driving controls.
+
 Several controls can be held together, including with separate fingers.
 Opposing requests on the same axis cancel: W with S gives zero surge, A with D
-gives zero strafe, and Q with E gives a zero target roll rate. Horizontal thrust
-changes velocity; releasing it does not automatically cancel drift. Use the
-opposite horizontal jet to slow down.
+gives zero strafe, and Q with E gives a zero target roll rate. Forward/backward thrust
+changes velocity; releasing W/S does not cancel that drift. Use the opposite
+forward/backward control to slow down. Releasing a side override returns lateral
+control to side assist.
 
 There is no pitch control, flight wheel brake, or nozzle that pushes in local
 negative Y. Each nozzle uses the shared gas reserve. Exhaust points opposite
@@ -102,19 +118,19 @@ cleared at departure too; press the desired flight button again.
 
 ## Retry, help, and options
 
-| Action                 | Keyboard                      | Interface                                   | Behavior                                                                                                                    |
-| ---------------------- | ----------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Start                  | **Enter** on the ready screen | **START DRIVING**                           | Start stationary on the road.                                                                                               |
-| Retry                  | **R**                         | Footer **RESTART**                          | Restart on the road during ready/drive/climb; restart stopped on the inverted lip during inverted/flight or after a result. |
-| Retry from top         | **Enter** after a result      | **RETRY FROM THE TOP**                      | Start stopped on the inverted lip in drive mode; pedal to the edge.                                                         |
-| Replay the full course | —                             | **Drive from the road** on the result panel | Restart stationary on the road.                                                                                             |
-| Pause or resume        | **Escape**, with help closed  | —                                           | Toggle the explicit pause state and clear active input.                                                                     |
-| Show instructions      | **/** or **?**                | Header **?**                                | Open the modal help dialog and suspend simulation.                                                                          |
-| Close instructions     | **Escape** while help is open | **×**, **GOT IT**, or the backdrop          | Close help and clear input; an explicit pause remains paused.                                                               |
-| Change camera          | **C**                         | Camera button                               | Cycle EVENT → TRACKING → SIDE, resetting orbit and zoom.                                                                    |
-| Toggle sound           | **M**                         | Sound button                                | Enable or mute generated audio; sound starts off.                                                                           |
-| Toggle slow motion     | **T**                         | **SLOW MOTION**                             | Use 0.5× simulation time in flight only. The default is normal speed.                                                       |
-| Toggle fullscreen      | **F**                         | Fullscreen button                           | Request or exit browser fullscreen when supported.                                                                          |
+| Action                 | Keyboard                      | Interface                                         | Behavior                                                                                                                    |
+| ---------------------- | ----------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Start                  | **Enter** on the ready screen | **START FROM GROUND**                             | Start stationary on the road.                                                                                               |
+| Retry                  | **R**                         | Footer **RESTART**                                | Restart on the road during ready/drive/climb; restart stopped on the inverted lip during inverted/flight or after a result. |
+| Retry from top         | —                             | Secondary **Retry from the top**                  | Start stopped on the inverted lip in drive mode; pedal to the edge.                                                         |
+| Replay the full course | **Enter** after a result      | Primary **START FROM GROUND** on the result panel | Restart stationary on the road.                                                                                             |
+| Pause or resume        | **Escape**, with help closed  | —                                                 | Toggle the explicit pause state and clear active input.                                                                     |
+| Show instructions      | **/** or **?**                | Header **?**                                      | Open the modal help dialog and suspend simulation.                                                                          |
+| Close instructions     | **Escape** while help is open | **×**, **GOT IT**, or the backdrop                | Close help and clear input; an explicit pause remains paused.                                                               |
+| Change camera          | **C**                         | Camera button                                     | Cycle EVENT → TRACKING → SIDE, resetting orbit and zoom.                                                                    |
+| Toggle sound           | **M**                         | Sound button                                      | Enable or mute generated audio; sound starts off.                                                                           |
+| Toggle slow motion     | **T**                         | **SLOW MOTION**                                   | Use 0.5× simulation time in flight only. The default is normal speed.                                                       |
+| Toggle fullscreen      | **F**                         | Fullscreen button                                 | Request or exit browser fullscreen when supported.                                                                          |
 
 A retry resets the car, gas reserve, effects, pause state, and camera orbit. It
 selects TRACKING and returns keyboard focus to the scene. Sound and the optional

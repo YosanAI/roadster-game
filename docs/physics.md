@@ -1,6 +1,6 @@
 # Physics and gameplay model
 
-The game combines a constrained driving model on the road and suction ramp with a force-driven airborne model. The player supplies the accelerator, brake, roll, lift, and horizontal-thruster commands. There is no timed climb, automatic leveling, or automatic landing.
+The game combines a constrained driving model on the road and suction ramp with a force-driven airborne model. The player supplies the accelerator, brake, roll, lift, and forward/backward thrust. Sideways drift is assisted automatically; manual side input overrides it. There is no timed climb, automatic leveling, or automatic landing.
 
 The vehicle mass, motor power, suction force, nozzle forces, and damage thresholds are game tuning values. They are not measurements of Tesla's demonstration vehicle. The code is deliberately small enough to inspect and modify without a general-purpose physics engine.
 
@@ -10,7 +10,7 @@ The vehicle mass, motor power, suction force, nozzle forces, and damage threshol
 | ----------------------------------------------------- | --------------------------------------------------------------------------- |
 | [`src/game/config.js`](../src/game/config.js)         | Course dimensions, gravity, vehicle tuning, and landing limits.             |
 | [`src/game/track.js`](../src/game/track.js)           | Sampled contact path, tangent, curvature, and departure point.              |
-| [`src/game/thrusters.js`](../src/game/thrusters.js)   | The eight fixed nozzles and the force/torque sum.                           |
+| [`src/game/thrusters.js`](../src/game/thrusters.js)   | Eight actuator groups and the force/torque sum.                             |
 | [`src/game/FlightGame.js`](../src/game/FlightGame.js) | State transitions, driving, nozzle allocation, integration, and collisions. |
 | [`tests/physics.test.js`](../tests/physics.test.js)   | Eighteen Node tests, including complete flights with digital controls.      |
 
@@ -80,6 +80,12 @@ Missing or non-finite commands become zero, and values are clamped. There is no 
 The renderer reads `position`, `quaternion`, `velocity`, `driveSpeed`, `inContact`, and `thrusterLevels`. It should not write simulation state during normal play. Tests deliberately set state to isolate particular impacts and nozzle configurations.
 
 `getTelemetry().altitude` is the lowest hull clearance above the ground. `height` is the center-of-mass Y coordinate. `thrust` is the average level of the four lift nozzles, and `fuel` is a tank percentage from 0 to 100.
+
+### Automatic side-drift assistance
+
+`new FlightGame()` enables side assistance; pass `{ flightAssist: false }` for isolated manual-force simulations. Assistance never rolls or levels the car. It requests a world-Z damping force proportional to sideways velocity and compensates the sideways component of banked lift, then converts that request to a bounded local strafe valve level. Near a 90° bank it waits because the side nozzles have insufficient world-Z authority. Nonzero manual `strafe` input overrides the automatic request for that step.
+
+All correction comes from `thrusterLevels` and is charged to the gas reserve. An empty tank provides no hidden force. `game.assist` and `getTelemetry().assist` expose enabled/active state and the actual signed automatic side output for the HUD; reset, contact and results clear activity. Roll, lift and fore/aft control remain manual.
 
 ## Contact path and manual driving
 
@@ -155,7 +161,7 @@ until a nozzle fires or a collision occurs.
 
 ## Eight fixed flight nozzles
 
-`THRUSTERS` is shared by physics and the car's exhaust meshes. Its array order is also the order of `game.thrusterLevels`. The four inactive decorative rear ports are not additional flight actuators.
+`THRUSTERS` is shared by physics and the car's exhaust meshes. Its array order is also the order of `game.thrusterLevels`. The forward and backward channels each represent the balanced resultant of four rear outlets. For reverse, exhaust deflects forward/outward at the rear; this game approximation does not rely on rear suction or a front plume.
 
 | Index | ID                 | Local position, m        | Local force direction | Maximum force |
 | ----- | ------------------ | ------------------------ | --------------------- | ------------- |
@@ -282,4 +288,4 @@ To change behavior, start in the following places:
 
 Keep the left/right and fore/aft lift layout symmetric unless you also extend the rotational dynamics. The renderer reads the same nozzle registry, so nozzle placement and force-direction changes remain visible.
 
-Run `npm test`, or `node --test tests/physics.test.js`, after a physics change. The eighteen tests cover exact gravity, manual driving and stopping, rollback and static holding, natural departure, the eight-nozzle force model, counter-roll gas/force, removed pitch and airborne wheel braking, damage, and successful digital-input flights at several frame rates. The automated pilots exist only in the tests; no equivalent auto-landing function is exported to the game.
+Run `npm test`, or `node --test tests/physics.test.js tests/assist.test.js`, after a physics change. The manual-force tests explicitly disable assistance and cover exact gravity, manual driving and stopping, rollback and static holding, natural departure, the eight-nozzle force model, counter-roll gas/force, removed pitch and airborne wheel braking, damage, and successful digital-input flights at several frame rates. The automated pilots exist only in the tests; no equivalent auto-landing function is exported to the game.
