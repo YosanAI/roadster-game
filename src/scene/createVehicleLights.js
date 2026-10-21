@@ -3,7 +3,6 @@ import * as THREE from 'three';
 const HEADLIGHT_INTENSITY = 190;
 const TAIL_INTENSITY = 2.3;
 const BRAKE_BOOST = 5;
-const REAR_SPILL_INTENSITY = 2.5;
 
 function partName(object) {
   return (object.userData.name || object.name).replaceAll('_', ' ').toLowerCase();
@@ -25,7 +24,7 @@ function materialsOf(meshes) {
  * with the rendered batches, so wheel animation and later batching are safe.
  * @param {THREE.Group} car Game-space vehicle, facing local +X.
  * @param {THREE.Object3D} model Normalized imported model, already parented to car.
- * @returns {{headlights: THREE.SpotLight[], targets: THREE.Object3D[], rearLight: THREE.PointLight, frontMaterials: THREE.Material[], rearMaterials: THREE.Material[], update: Function, reset: Function}}
+ * @returns {{headlights: THREE.SpotLight[], targets: THREE.Object3D[], frontMaterials: THREE.Material[], rearMaterials: THREE.Material[], update: Function, reset: Function}}
  */
 export function createVehicleLights(car, model) {
   const guides = [];
@@ -102,23 +101,18 @@ export function createVehicleLights(car, model) {
     targets.push(target);
   }
 
-  const rearLight = new THREE.PointLight(0xff1730, REAR_SPILL_INTENSITY, 4.5, 2);
-  rearLight.name = 'roadster-rear-light-spill';
-  rearLight.position.copy(anchor(rearParts[0]));
-  rearLight.position.x -= 0.1;
-  rearLight.castShadow = false;
-  car.add(rearLight);
-
   function reset() {
     for (const material of frontMaterials) {
       if (material.emissive.getHex() === 0) material.emissive.set(0xdcecff);
       material.emissiveIntensity = 5;
     }
     for (const material of rearMaterials) {
+      // The actual full-width blade supplies the rear light's shape. Emission
+      // stays visible without external lighting and cannot create a circular
+      // patch on the number plate or road like the former central PointLight.
       if (material.emissive.getHex() === 0) material.emissive.set(0xff1730);
       material.emissiveIntensity = TAIL_INTENSITY;
     }
-    rearLight.intensity = REAR_SPILL_INTENSITY;
   }
 
   function update(game) {
@@ -129,11 +123,10 @@ export function createVehicleLights(car, model) {
         : 0;
     for (const material of rearMaterials)
       material.emissiveIntensity = TAIL_INTENSITY + braking * BRAKE_BOOST;
-    rearLight.intensity = REAR_SPILL_INTENSITY * (1 + braking * 1.5);
   }
 
   reset();
-  const lights = { headlights, targets, rearLight, frontMaterials, rearMaterials, update, reset };
+  const lights = { headlights, targets, frontMaterials, rearMaterials, update, reset };
   car.userData.lights = lights;
   return lights;
 }
