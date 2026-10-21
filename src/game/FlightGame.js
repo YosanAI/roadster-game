@@ -45,6 +45,7 @@ const UP = new Vector3(0, 1, 0);
 const X_AXIS = new Vector3(1, 0, 0);
 const Z_AXIS = new Vector3(0, 0, 1);
 const FORWARD = X_AXIS;
+const SIDE_FORCE = THRUSTERS.find((thruster) => thruster.axis === 'strafe').maxForce;
 
 // Sparse body corners and tyre contacts used for collision support heights.
 // These points intentionally remain independent of the rendered car mesh.
@@ -72,7 +73,8 @@ const control = (value) => MathUtils.clamp(finite(value), -1, 1);
  * them or mutate state during an ordinary game.
  */
 export class FlightGame {
-  constructor() {
+  /** @param {{flightAssist?: boolean}} [options] Automatic side-drift cancellation. */
+  constructor({ flightAssist = true } = {}) {
     /** World-space centre of mass, metres. */
     this.position = new Vector3();
     /** World-space translational velocity, m/s. */
@@ -83,6 +85,8 @@ export class FlightGame {
     this.angularVelocity = new Vector3();
     /** Actual 0…1 valve levels in THRUSTERS order, shared with the exhaust visuals. */
     this.thrusterLevels = new Float32Array(THRUSTERS.length);
+    /** Actual automatic side correction. Roll remains manual; its assist value is zero. */
+    this.assist = { enabled: Boolean(flightAssist), active: false, roll: 0, strafe: 0 };
 
     // Reused vector/quaternion scratch values avoid per-frame Three.js objects.
     this._up = new Vector3();
@@ -103,6 +107,7 @@ export class FlightGame {
     this.quaternion.identity();
     this.angularVelocity.set(0, 0, 0);
     this.thrusterLevels.fill(0);
+    this._clearAssist();
     /** @type {GameStage} */
     this.stage = 'ready';
     this.inContact = true;
@@ -155,6 +160,7 @@ export class FlightGame {
     this.velocity.copy(FORWARD).applyQuaternion(this.quaternion).multiplyScalar(this.driveSpeed);
     this.angularVelocity.set(0, 0, 0);
     this.thrusterLevels.fill(0);
+    this._clearAssist();
     this.thrust = 0;
     this.braking = 0;
     this._topContactCleared = false;
@@ -206,6 +212,7 @@ export class FlightGame {
   }
 
   _stepContact(dt, commands) {
+    this._clearAssist();
     const { throttle, brake } = commands;
     const point = sampleTrack(this._trackDistance);
     const oldSpeed = this.driveSpeed;
@@ -265,7 +272,9 @@ export class FlightGame {
   /** Allocate one-way valves, charge gas, and return their actual force/torque. */
   _allocateThrusters(commands, dt) {
     this.thrusterLevels.fill(0);
+    this._clearAssist();
     if (this.fuel <= 0) return getThrusterWrench(this.thrusterLevels);
+    const automaticStrafe = this.assist.enabled && commands.strafe === 0;
     const requestedTorque =
       VEHICLE.rollInertia *
       VEHICLE.rollResponse *
@@ -291,14 +300,45 @@ export class FlightGame {
       }
     }
     let wrench = getThrusterWrench(this.thrusterLevels);
+    let strafe = commands.strafe;
+    if (automaticStrafe) {
+      // Cancel sideways travel through the real side jets, compensating for
+      // lift while banked. Near 90 degrees these jets have little world-Z
+      // authority, so wait for the pilot to roll rather than waste the tank.
+      this._point.copy(Z_AXIS).applyQuaternion(this.quaternion);
+      if (Math.abs(this._point.z) > 0.25) {
+        this._acceleration.fromArray(wrench.force).applyQuaternion(this.quaternion);
+        const desiredForceZ = -this.velocity.z * VEHICLE.mass * 2.2;
+        strafe = MathUtils.clamp(
+          (this._acceleration.z - desiredForceZ) / (SIDE_FORCE * this._point.z),
+          -1,
+          1,
+        );
+        for (let i = 0; i < THRUSTERS.length; i++) {
+          const thruster = THRUSTERS[i];
+          if (thruster.axis === 'strafe')
+            this.thrusterLevels[i] = Math.max(0, strafe * thruster.commandSign);
+        }
+        wrench = getThrusterWrench(this.thrusterLevels);
+      }
+    }
+    let fuelScale = 1;
     const requestedFuel = wrench.totalForce * VEHICLE.fuelPerNewtonSecond * dt;
     if (requestedFuel > this.fuel) {
-      const fraction = this.fuel / requestedFuel;
-      for (let i = 0; i < this.thrusterLevels.length; i++) this.thrusterLevels[i] *= fraction;
+      fuelScale = this.fuel / requestedFuel;
+      for (let i = 0; i < this.thrusterLevels.length; i++) this.thrusterLevels[i] *= fuelScale;
       wrench = getThrusterWrench(this.thrusterLevels);
     }
+    this.assist.strafe = automaticStrafe ? strafe * fuelScale : 0;
+    this.assist.active = Math.abs(this.assist.strafe) > 0.005;
     this.fuel = Math.max(0, this.fuel - wrench.totalForce * VEHICLE.fuelPerNewtonSecond * dt);
     return wrench;
+  }
+
+  _clearAssist() {
+    this.assist.active = false;
+    this.assist.roll = 0;
+    this.assist.strafe = 0;
   }
 
   _stepFlight(dt, commands) {
@@ -462,6 +502,7 @@ export class FlightGame {
     this.thrust = 0;
     this.braking = 0;
     this.thrusterLevels.fill(0);
+    this._clearAssist();
   }
 
   _finishCrash(reason, reasonCode) {
@@ -469,6 +510,7 @@ export class FlightGame {
     this.stage = 'crashed';
     this.driveSpeed = 0;
     this.thrusterLevels.fill(0);
+    this._clearAssist();
     this.velocity.set(0, 0, 0);
     this.angularVelocity.set(0, 0, 0);
     this.thrust = 0;
@@ -507,6 +549,7 @@ export class FlightGame {
       fuel: this.fuel,
       thrust: this.thrust,
       climbProgress: this.climbProgress,
+      assist: { ...this.assist },
     };
   }
 }

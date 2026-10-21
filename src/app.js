@@ -249,7 +249,7 @@ export function startGameApp() {
       switch (code) {
         case 'Enter':
           if (game.stage === 'ready') begin();
-          else if (game.result) begin({ fromTop: true, increment: true });
+          else if (game.result) begin({ increment: true });
           break;
         case 'KeyR':
           begin({

@@ -4,15 +4,15 @@ import { Group, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { THRUSTERS } from '../src/game/thrusters.js';
 import { createEffects } from '../src/scene/createEffects.js';
 import { createSmokePool } from '../src/scene/createSmokePool.js';
+import { createRoadster } from '../src/scene/createRoadster.js';
 
 // Exercise the renderer-facing particle buffers without requiring a WebGL
 // context. No DOM, road meshes or physics integration are needed for emission.
-function createHarness({ height = 1.2, roll = 0, active = [] } = {}) {
+function createHarness({ height = 1.2, roll = 0, active = [], car = new Group() } = {}) {
   const scene = new Scene();
-  const car = new Group();
   car.position.y = height;
   car.rotation.x = roll;
-  car.userData.thrusters = THRUSTERS.map((definition) => {
+  car.userData.thrusters ||= THRUSTERS.map((definition) => {
     const mesh = new Object3D();
     mesh.position.set(...definition.position);
     mesh.material = { opacity: 0 };
@@ -111,6 +111,46 @@ test('a banked horizontal nozzle disturbs the ground only when its exhaust point
   assert.equal(up.particles(1).length, 0, 'the opposite banked nozzle points away from the road');
 });
 
+test('forward and reverse thrust each drive the four rear outlets from one valve group', () => {
+  const h = createHarness({ height: 20, car: createRoadster({ detailed: false }) });
+  assert.equal(h.car.userData.thrusters.length, THRUSTERS.length);
+  for (const index of [4, 5]) {
+    h.effects.reset();
+    h.game.thrusterLevels.fill(0);
+    h.game.thrusterLevels[index] = 1;
+    h.advance(0.15);
+    const activeOutlets = h.car.userData.thrusters[index].outlets;
+    assert.equal(activeOutlets?.length, 4, 'longitudinal thrust must use four visible outlets');
+    for (const outlet of activeOutlets) {
+      assert.ok(outlet.mesh.position.x < -2, 'both directions must exit at the rear housings');
+      assert.equal(outlet.mesh.visible, true);
+      assert.ok(
+        index === 4 ? outlet.direction.x < 0 : outlet.direction.x > 0,
+        'reverse deflectors must redirect the exhaust instead of inventing a front nozzle',
+      );
+      assert.ok(
+        h.particles(0).some((p) => {
+          const offset = new Vector3(p.x, p.y, p.z).sub(h.car.position).sub(outlet.mesh.position);
+          const distance = offset.dot(outlet.direction);
+          const across = offset.addScaledVector(outlet.direction, -distance).length();
+          return distance > 0.1 && distance < 5 && across < 0.12;
+        }),
+        'each rear outlet must emit its own vapor stream',
+      );
+    }
+    for (const [otherIndex, emitter] of h.car.userData.thrusters.entries()) {
+      if (otherIndex === index) continue;
+      for (const outlet of emitter.outlets || [emitter]) assert.equal(outlet.mesh.visible, false);
+    }
+    assert.ok(h.particles(0).length > 0);
+  }
+
+  h.effects.reset();
+  for (const emitter of h.car.userData.thrusters) {
+    for (const outlet of emitter.outlets || [emitter]) assert.equal(outlet.mesh.visible, false);
+  }
+});
+
 test('smoke sorts across all kinds using the current camera pose after an orbit', () => {
   const scene = new Scene();
   const pool = createSmokePool(scene);
@@ -176,21 +216,59 @@ test('orbiting while paused reorders smoke without emitting or aging the cloud',
   assert.deepEqual(snapshot(), frozenCloud, 'paused updates must preserve every cloud particle');
 });
 
-test('near-ground clouds reach around the car and linger for seconds after cutoff', () => {
+test('ground wash spreads quickly as light vapor and clears after a short lingering tail', () => {
   const h = createHarness({ active: [0, 1, 2, 3] });
-  h.advance(1.5);
+  h.advance(0.6);
   const cloud = h.particles(1);
   assert.ok(cloud.length > 0);
   assert.ok(
-    cloud.some((p) => p.y + p.size / 2 > h.car.position.y + 0.6),
-    'ground billows must rise above the body rather than remain a thin floor layer',
+    cloud.every((p) => p.alpha < 0.4),
+    'individual outwash wisps should remain translucent rather than resemble thick fire smoke',
   );
 
   h.game.thrusterLevels.fill(0);
+  h.advance(1.2);
+  const lingering = h.particles(1);
+  assert.ok(lingering.length > 0, 'the outward wash should linger after the valves close');
+  assert.ok(
+    lingering.some((p) => Math.hypot(p.x, p.z) > 5),
+    'the wash must travel outward promptly instead of accumulating around the body',
+  );
   h.advance(3);
-  assert.ok(h.particles(1).length > 0, 'ground smoke must remain after three seconds of coasting');
-  h.advance(8);
-  assert.equal(h.particles().length, 0, 'released smoke must eventually dissipate');
+  assert.equal(h.particles().length, 0, 'vapor should clear within a few seconds of cutoff');
+});
+
+test('a fast-falling car retains a continuous jet close to the moving nozzle at low frame rates', (t) => {
+  let seed = 0x7a32bc;
+  t.mock.method(Math, 'random', () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  });
+  for (const fps of [20, 30]) {
+    const h = createHarness({ height: 100, active: [4] });
+    h.game.velocity.set(0, -60, 0);
+    const dt = 1 / fps;
+    for (let frame = 0; frame < Math.floor(fps * 0.6); frame++) {
+      h.car.position.addScaledVector(h.game.velocity, dt);
+      h.effects.update(dt, h.game, h.car);
+      if (frame < 2) continue;
+      const nozzle = h.car.userData.thrusters[4].mesh.position;
+      const nearJet = h.particles(0).filter((p) => {
+        const distance = nozzle.x - p.x;
+        return distance > 0.15 && distance < 3.5 && Math.abs(p.y - h.car.position.y - nozzle.y) < 1;
+      });
+      assert.ok(
+        nearJet.length >= 2,
+        `the jet must stay attached to its falling nozzle at ${fps} FPS (frame ${frame})`,
+      );
+      const distances = nearJet.map((p) => nozzle.x - p.x).sort((a, b) => a - b);
+      const samples = [0.15, ...distances, 3.5];
+      assert.ok(
+        samples.every((distance, i) => i === 0 || distance - samples[i - 1] < 1.5),
+        `the first metres of jet must not break into frame-spaced puffs at ${fps} FPS`,
+      );
+    }
+  }
 });
 
 test('released smoke stays in world space when the car moves away', () => {

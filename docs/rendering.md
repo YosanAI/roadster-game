@@ -48,19 +48,19 @@ The geometry helpers have distinct purposes:
 
 The factory exposes these animation hooks on `car.userData`:
 
-| Hook                   | Use                                                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `wheels`               | Four wheel groups. Effects advance `rotation.z` from signed `game.driveSpeed`.                                       |
-| `thrusters`            | Eight plume descriptors in shared registry order. Each includes its ID, definition, mesh and exhaust direction.      |
-| `bodyBounds`           | Bounds of the car body before the hidden exhaust volumes are added. These are visual bounds, not the collision hull. |
-| `paintMaterials`       | Body materials used by the reversible damage tint.                                                                   |
-| `markDamaged(boolean)` | Darken and roughen the body, or restore the normal finish.                                                           |
+| Hook                   | Use                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `wheels`               | Four wheel groups. Effects advance `rotation.z` from signed `game.driveSpeed`.                                                 |
+| `thrusters`            | Eight actuator descriptors in registry order. Surge entries include four rear `outlets`; each outlet has a mesh and direction. |
+| `bodyBounds`           | Bounds of the car body before the hidden exhaust volumes are added. These are visual bounds, not the collision hull.           |
+| `paintMaterials`       | Body materials used by the reversible damage tint.                                                                             |
+| `markDamaged(boolean)` | Darken and roughen the body, or restore the normal finish.                                                                     |
 
 `detailed: false` reduces wheel tessellation and omits small close-view details. It preserves the overall silhouette, wheel hooks and eight-unit actuator layout. The app can reuse the same car across attempts by resetting animation and damage state.
 
-## One registry for all eight emitters
+## One registry for eight actuator groups
 
-[`thrusters.js`](../src/game/thrusters.js) is the shared actuator definition. The car creates its plume meshes from that registry, and effects read `game.thrusterLevels` in the same order.
+[`thrusters.js`](../src/game/thrusters.js) is the shared actuator definition. Effects read `game.thrusterLevels` in registry order. Lift and side actuators each drive one outlet; each surge actuator drives the four rear outlets as a balanced group. The registry positions for surge are equivalent resultant-force locations, not four individual housing positions.
 
 | Units                      | Force direction   | Exhaust direction         |
 | -------------------------- | ----------------- | ------------------------- |
@@ -68,13 +68,13 @@ The factory exposes these animation hooks on `car.userData`:
 | Front/back horizontal pair | Local `−X` / `+X` | Opposite the unit's force |
 | Left/right horizontal pair | Local `−Z` / `+Z` | Opposite the unit's force |
 
-For every unit, `exhaustDirection = -forceDirection`. Lift output never reverses. The force solver controls differential lift; the renderer shows the resulting per-unit levels. It does not invent additional pitch jets, counterjets or braking exhaust.
+Lift and side exhaust directions oppose their force direction. The four rear outlets point backward for forward thrust; for reverse/braking they deflect gas forward and outward in balanced pairs. The sideways components cancel, giving the aggregate reverse force. Lift output never reverses. The force solver controls differential lift; the renderer shows the resulting per-unit levels. It does not invent additional pitch jets, counterjets or braking exhaust.
 
-The four decorative rear outlet housings are part of the car's appearance. They are separate from the eight active registry entries and are not animated as extra controls. Effects never relocate or rotate a registered emitter to make a visual approximation of a different force.
+The four rear housings are active propulsion outlets. Forward and reverse remain two one-way control channels in the simplified force solver, sharing those four physical housings; reverse is a thrust-reverser approximation, not rear suction. No front exhaust is drawn. Each channel scales emission for its narrower outlets while retaining enough samples per outlet for a continuous fast jet. All outlets share the same fixed particle budget.
 
 ## Exhaust smoke and ground clouds
 
-Each active nozzle has a short, translucent blue core surrounded by textured white/gray smoke. Smoke follows actual `game.thrusterLevels`, the registered nozzle position and its fixed exhaust direction. It inherits some vehicle velocity, slows as it entrains air, expands, rotates and drifts with turbulence. Exhaust puffs last 2.2–3.1 seconds rather than disappearing as soon as thrust stops.
+Each active nozzle has a short, translucent blue core surrounded by textured white/gray smoke. Vapor follows actual `game.thrusterLevels` and each outlet's fixed exhaust direction. Jet speed is 34–50 m/s relative to the nozzle. Births are distributed between the previous and current world-space nozzle positions, with fractional-frame ages and the full nozzle velocity inherited. This avoids detached beads when the car falls fast or renders at a low frame rate. Projected nozzle direction stretches the billboards into overlapping jet streaks; expansion and turbulence break them into fading wisps. Most jet vapor lasts 0.65–1.15 seconds, with sparse residual wisps lasting 1.3–1.8 seconds.
 
 [`createSmokePool.js`](../src/scene/createSmokePool.js) bakes a shared 256 × 256 texture atlas once. Its 16 distinct billows come from integrating density and approximate light attenuation through fractal 3D noise. This gives each puff internal shadows and irregular edges without downloaded textures or an additional particle library. The fragment shader slowly advects the texture to keep the smoke evolving.
 
@@ -90,7 +90,7 @@ distance = -worldOrigin.y / worldExhaustDirection.y;
 
 Only positive intersections inside the effective range, `6 + 2 * level` metres, produce ground clouds. This works while the car is airborne, including downward-pointing horizontal units when the car banks. An upward-pointing jet cannot disturb the ground.
 
-Closer, stronger jets emit more smoke. The outwash initially spreads radially across the asphalt, then curls upward around and above the body. Several simultaneous lift jets build a dense cloud capable of engulfing the car. Ground puffs last 4.5–6 seconds and gradually fade after cutoff. Existing smoke remains in world space when the car moves away. Touchdown dust and crash sparks are separate one-shot feedback; a crash also emits darker textured smoke briefly.
+Closer, stronger jets emit more vapor. The outwash rushes radially across the asphalt in translucent, flattened sheets with little upward buoyancy. Its initial radial speed is roughly 9–17 m/s at full output, so the car stays visible instead of being buried in a dense fire-smoke cloud. Ground wisps last 2.4–3.6 seconds with an early, gradual fade. Jet vapor reaching the road also turns outward instead of bouncing upward. Existing vapor remains in world space when the car moves away. Touchdown dust and crash sparks are separate one-shot feedback; a crash also emits darker textured smoke briefly.
 
 ### Fixed particle budget
 

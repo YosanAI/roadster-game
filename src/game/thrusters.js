@@ -1,4 +1,6 @@
-// The eight active flight nozzles. Positions and force directions are expressed
+// Eight flight actuator groups. Surge channels model the balanced resultant
+// of four rear outlets (reverse uses exhaust deflectors). Effective force
+// positions and directions are expressed
 // in car coordinates: +X forward, +Y through the roof, +Z toward the left side.
 // A visible exhaust plume points opposite its nozzle's forceDirection.
 // Forces are game tuning values, not measured specifications of Tesla hardware.

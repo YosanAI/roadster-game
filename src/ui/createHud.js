@@ -21,7 +21,9 @@ export function createHud(ui, { coarsePointer = false } = {}) {
       drive: 'DRIVE MODE / SUCTION ACTIVE',
       climb: 'DRIVE MODE / CLIMBING',
       inverted: 'DRIVE MODE / INVERTED',
-      flight: 'SUCTION OFF / MANUAL FLIGHT',
+      flight: game.assist?.enabled
+        ? 'SUCTION OFF / ASSISTED FLIGHT'
+        : 'SUCTION OFF / MANUAL FLIGHT',
       success: 'TOUCHDOWN CONFIRMED',
       crashed: 'VEHICLE DAMAGED',
     };
@@ -44,7 +46,7 @@ export function createHud(ui, { coarsePointer = false } = {}) {
       orientation:
         'The car hit at the wrong angle. Get the wheels underneath you before touchdown.',
       impact: 'The impact was too hard. Start your lift burn earlier to slow the descent.',
-      lateral: 'Too much horizontal speed. Use an opposing horizontal jet before touchdown.',
+      lateral: 'Too much horizontal speed. Use forward/backward thrust to brake before touchdown.',
       spin: 'You were still rotating at contact. Release the rotation controls earlier.',
       ramp: 'The car struck the ramp. Clear the wall before firing lift.',
       bounds: 'The car left the test course. Use horizontal thrust to stay over the asphalt.',
@@ -57,7 +59,7 @@ export function createHud(ui, { coarsePointer = false } = {}) {
     ui['result-tilt'].innerHTML = `${result.tiltDegrees.toFixed(1)} <small>°</small>`;
     ui['result-impact'].className = result.impact <= LIMITS.impact ? 'good' : 'warning';
     ui['result-tilt'].className = result.tiltDegrees <= LIMITS.tiltDegrees ? 'good' : 'warning';
-    ui.retry.textContent = safe ? 'FLY AGAIN ↗' : 'RETRY FROM THE TOP ↗';
+    ui.retry.textContent = 'Retry from the top ↗';
     if (safe) {
       try {
         const previous = Number(localStorage.getItem('roadster-best-impact') || 99);
@@ -69,8 +71,37 @@ export function createHud(ui, { coarsePointer = false } = {}) {
     }
   }
 
+  function updateAssist(game) {
+    const assist = game.assist;
+    const enabled = game.stage === 'flight' && Boolean(assist?.enabled);
+    const available = enabled && game.fuel > 0;
+    const strafe = available ? assist.strafe : 0;
+    const directions = [];
+    if (strafe > 0) directions.push('CORRECTING RIGHT');
+    else if (strafe < 0) directions.push('CORRECTING LEFT');
+    const active = available && Boolean(assist.active) && directions.length > 0;
+    const text = !enabled
+      ? 'MANUAL FLIGHT'
+      : !available
+        ? 'SIDE ASSIST · GAS DEPLETED'
+        : active
+          ? `SIDE ASSIST · ${directions.join(' · ')}`
+          : 'SIDE ASSIST · MONITORING';
+    // Announce transitions, not every telemetry frame.
+    if (ui['assist-status'].textContent !== text) ui['assist-status'].textContent = text;
+    ui['assist-indicator'].classList.toggle('active', active);
+    ui['assist-indicator'].classList.toggle('unavailable', !available);
+    for (const [id, output] of [
+      ['assist-strafe-left', -strafe],
+      ['assist-strafe-right', strafe],
+    ]) {
+      ui[id].classList.toggle('auto-active', active && output > 0);
+    }
+  }
+
   function update(game) {
     const t = game.getTelemetry();
+    updateAssist(game);
     const finalMetrics = game.result;
     const driving = game.inContact && !finalMetrics;
     ui['telemetry-title'].textContent = driving ? 'DRIVE TELEMETRY' : 'FLIGHT TELEMETRY';
@@ -139,9 +170,9 @@ export function createHud(ui, { coarsePointer = false } = {}) {
           ? 'Hold LIFT to slow the descent. Keep the tilt below 15°.'
           : 'Hold SPACE to slow the descent. Keep the tilt below 15°.';
       } else if (t.horizontalSpeed > LIMITS.lateralSpeed) {
-        ui['coach-title'].textContent = 'COUNTER THE HORIZONTAL DRIFT';
+        ui['coach-title'].textContent = 'BRAKE FORWARD / BACKWARD DRIFT';
         ui['coach-detail'].textContent =
-          'Use the opposite horizontal jet to slow your travel before contact.';
+          'Use W / S or FORWARD / BACK to slow travel. Auto assist checks sideways drift.';
       } else if (t.altitude < 4 && t.descentSpeed < 4.5) {
         ui['coach-title'].textContent = 'KEEP IT LEVEL';
         ui['coach-detail'].textContent = 'Small lift pulses. Settle onto all four wheels.';
