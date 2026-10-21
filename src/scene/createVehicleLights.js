@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 
 const HEADLIGHT_INTENSITY = 190;
-const TAIL_INTENSITY = 2.3;
-const BRAKE_BOOST = 5;
+// Match the ramp and road LEDs: unlit saturated red, outside ACES tone mapping.
+const TAIL_COLOR = new THREE.Color(0xff1736);
+const TAIL_BRIGHTNESS = 1;
+const BRAKE_BOOST = 2;
 
 function partName(object) {
   return (object.userData.name || object.name).replaceAll('_', ' ').toLowerCase();
@@ -12,7 +14,7 @@ function materialsOf(meshes) {
   const materials = new Set();
   for (const mesh of meshes) {
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-      if (material?.emissive) materials.add(material);
+      if (material) materials.add(material);
     }
   }
   return [...materials];
@@ -30,6 +32,7 @@ export function createVehicleLights(car, model) {
   const guides = [];
   const frontParts = [];
   const rearParts = [];
+  const rearReplacements = new Map();
   const daytimeLights = [];
   model.traverse((object) => {
     if (!object.isMesh) return;
@@ -60,7 +63,25 @@ export function createVehicleLights(car, model) {
       name.includes('continuous front daytime running light')
     )
       frontParts.push(object);
-    if (name.includes('full-width red rear light blade')) rearParts.push(object);
+    if (name.includes('full-width red rear light blade')) {
+      const neon = (source) => {
+        if (!rearReplacements.has(source)) {
+          rearReplacements.set(
+            source,
+            new THREE.MeshBasicMaterial({
+              color: TAIL_COLOR,
+              toneMapped: false,
+              side: source.side,
+            }),
+          );
+        }
+        return rearReplacements.get(source);
+      };
+      object.material = Array.isArray(object.material)
+        ? object.material.map(neon)
+        : neon(object.material);
+      rearParts.push(object);
+    }
   });
   if (guides.length !== 2 || rearParts.length === 0) {
     throw new Error('Roadster model is missing its two headlamp guides or rear light blade.');
@@ -107,11 +128,7 @@ export function createVehicleLights(car, model) {
       material.emissiveIntensity = 5;
     }
     for (const material of rearMaterials) {
-      // The actual full-width blade supplies the rear light's shape. Emission
-      // stays visible without external lighting and cannot create a circular
-      // patch on the number plate or road like the former central PointLight.
-      if (material.emissive.getHex() === 0) material.emissive.set(0xff1730);
-      material.emissiveIntensity = TAIL_INTENSITY;
+      material.color.copy(TAIL_COLOR).multiplyScalar(TAIL_BRIGHTNESS);
     }
   }
 
@@ -122,7 +139,7 @@ export function createVehicleLights(car, model) {
         ? THREE.MathUtils.clamp(Number.isFinite(game.braking) ? game.braking : 0, 0, 1)
         : 0;
     for (const material of rearMaterials)
-      material.emissiveIntensity = TAIL_INTENSITY + braking * BRAKE_BOOST;
+      material.color.copy(TAIL_COLOR).multiplyScalar(TAIL_BRIGHTNESS + braking * BRAKE_BOOST);
   }
 
   reset();

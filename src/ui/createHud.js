@@ -94,12 +94,6 @@ export function createHud(ui, { coarsePointer = false } = {}) {
     if (ui['assist-status'].textContent !== text) ui['assist-status'].textContent = text;
     ui['assist-indicator'].classList.toggle('active', active);
     ui['assist-indicator'].classList.toggle('unavailable', !available);
-    for (const [id, output] of [
-      ['assist-strafe-left', -strafe],
-      ['assist-strafe-right', strafe],
-    ]) {
-      ui[id].classList.toggle('auto-active', active && output > 0);
-    }
   }
 
   function update(game) {
@@ -181,7 +175,7 @@ export function createHud(ui, { coarsePointer = false } = {}) {
       } else if (t.horizontalSpeed > LIMITS.lateralSpeed) {
         ui['coach-title'].textContent = 'BRAKE FORWARD / BACKWARD DRIFT';
         ui['coach-detail'].textContent =
-          'Use W / S or FORWARD / BACK to slow travel. Auto assist checks sideways drift.';
+          'Use keyboard W / S to slow forward/backward travel. Side assist checks sideways drift.';
       } else if (t.altitude < 4 && t.descentSpeed < 4.5) {
         ui['coach-title'].textContent = 'KEEP IT LEVEL';
         ui['coach-detail'].textContent = 'Small lift pulses. Settle onto all four wheels.';

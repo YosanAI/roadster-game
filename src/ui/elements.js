@@ -27,8 +27,6 @@ export function getUiElements(root = document) {
     'flight-controls',
     'assist-indicator',
     'assist-status',
-    'assist-strafe-left',
-    'assist-strafe-right',
     'drive-controls',
     'drive-caption',
     'control-mode-label',

@@ -101,7 +101,7 @@ Edit **`src/camera/CameraRig.js`** for framing and camera movement, and **`src/s
 
 ## Play
 
-Choose **Start driving**, then press the pedal. Suction holds the tyres to the road, wall and inverted lip. Use the brake to manage departure speed. Controls automatically change when the trailing wheels leave the edge.
+Choose **START FROM GROUND**, then press the pedal. Suction holds the tyres to the road, wall and inverted lip. Use the brake to manage departure speed. Controls automatically change when the trailing wheels leave the edge.
 
 | Mode    | Action                         | Keyboard                     |
 | ------- | ------------------------------ | ---------------------------- |
@@ -112,9 +112,9 @@ Choose **Start driving**, then press the pedal. Suction holds the tyres to the r
 | Flight  | Forward / backward thrust      | W / S or up / down arrows    |
 | Flight  | Override automatic side thrust | A / D or left / right arrows |
 
-The on-screen buttons support simultaneous holds. A held driving key must be released before it can activate a flight jet. Other shortcuts and the exact input behavior are in [Controls](docs/controls.md).
+The on-screen flight controls are **ROLL L**, **ROLL R**, and **LIFT**, with simultaneous holds supported. Directional thrust and side overrides remain available through the keyboard mappings above; there are no on-screen directional buttons. A held driving key must be released before it can activate a flight jet. Other shortcuts and the exact input behavior are in [Controls](docs/controls.md).
 
-For a first attempt, approach the edge around 30 km/h, roll upright after departure, then pulse lift and brake forward/backward drift. The computer cancels sideways drift; the SIDE ASSIST indicator and green side controls show when it fires. Manual A/D input overrides that assistance. Releasing a roll button commands a real counter-roll burn from the opposite lift pair; it does not automatically level the car.
+For a first attempt, approach the edge around 30 km/h, roll upright after departure, then pulse lift and brake forward/backward drift. The computer cancels sideways drift; the SIDE ASSIST strip turns green and shows the correction direction when it fires. Manual A/D input overrides that assistance. Releasing a roll button commands a real counter-roll burn from the opposite lift pair; it does not automatically level the car.
 
 A safe landing immediately restores PEDAL / BRAKE so you can drive away. After two unpaused seconds it displays **Landed safe. More levels coming soon.** Tune the delay with `PRESENTATION.successMenuDelaySeconds` in `src/game/config.js`. A damaging landing displays **Game over.**, its cause, impact speed and tilt. Retry from the top starts stopped on the inverted lip; replay starts from the road.
 

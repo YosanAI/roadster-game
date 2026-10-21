@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Box3, Vector3 } from 'three';
+import { Box3, Scene, Vector3 } from 'three';
 import { THRUSTERS } from '../src/game/thrusters.js';
 import { createEffects } from '../src/scene/createEffects.js';
 import { createRoadster } from '../src/scene/createRoadster.js';
+import { createEnvironment } from '../src/scene/createEnvironment.js';
 import { loadRoadsterModel } from './helpers/loadRoadsterModel.js';
 
 const near = (actual, expected, tolerance = 0.02) =>
@@ -153,9 +154,7 @@ test('independent cars do not change one another or the parsed asset when damage
   const first = createRoadster(source);
   const second = createRoadster(source);
   const secondPaint = second.userData.paintMaterials.map((material) => material.color.clone());
-  const secondRear = second.userData.lights.rearMaterials.map(
-    (material) => material.emissiveIntensity,
-  );
+  const secondRear = second.userData.lights.rearMaterials.map((material) => material.color.clone());
   first.userData.markDamaged(true);
   first.userData.lights.update({ stage: 'drive', inContact: true, braking: 1 });
   first.userData.wheels[0].rotation.z = 0.8;
@@ -163,11 +162,7 @@ test('independent cars do not change one another or the parsed asset when damage
     assert.ok(material.color.equals(secondPaint[index]), 'paint must be cloned per car');
   });
   second.userData.lights.rearMaterials.forEach((material, index) => {
-    assert.equal(
-      material.emissiveIntensity,
-      secondRear[index],
-      'braking must not light another car',
-    );
+    assert.ok(material.color.equals(secondRear[index]), 'braking must not light another car');
   });
   near(second.userData.wheels[0].rotation.z, 0, 1e-8);
   assert.equal(source.parent, null, 'the loader scene must not be moved into either car');
@@ -196,8 +191,9 @@ test('the actual headlamp and rear-blade materials remain connected after batchi
   });
   for (const material of [...lights.frontMaterials, ...lights.rearMaterials]) {
     assert.ok(rendered.has(material), 'a lamp must update the material on a retained render mesh');
-    assert.ok(material.emissiveIntensity > 0, 'running lights must be illuminated');
   }
+  for (const material of lights.frontMaterials)
+    assert.ok(material.emissiveIntensity > 0, 'front running lights must be illuminated');
   const sides = new Set();
   for (const headlight of lights.headlights) {
     assert.ok(
@@ -207,26 +203,28 @@ test('the actual headlamp and rear-blade materials remain connected after batchi
     sides.add(Math.sign(headlight.position.z));
   }
   assert.equal(sides.size, 2, 'there must be one front beam on each side');
-  assert.ok(rearBounds.max.x < -2.2, 'emission must stay on the rear bodywork');
+  assert.ok(rearBounds.max.x < -2.2, 'the neon strip must stay on the rear bodywork');
   assert.ok(
     rearBounds.min.z < -0.9 && rearBounds.max.z > 0.9,
-    'the actual emissive geometry must span the full-width red line',
+    'the actual neon geometry must span the full-width red line',
   );
-  for (const material of lights.rearMaterials)
-    assert.ok(
-      material.emissive.r > material.emissive.g && material.emissive.r > material.emissive.b,
-      'the full strip must emit red light',
-    );
-  assert.deepEqual(sceneLights, lights.headlights, 'rear emission must not add a point hotspot');
+  const environment = createEnvironment(new Scene());
+  const rampLine = environment.ramp.getObjectByName('Continuous red ramp edge LED').material;
+  for (const material of lights.rearMaterials) {
+    assert.ok(material.isMeshBasicMaterial, 'the rear line must stay visible without scene lights');
+    assert.equal(material.toneMapped, false, 'tone mapping must not dull the neon red');
+    assert.ok(material.color.equals(rampLine.color), 'rear neon must match the bright ramp line');
+  }
+  assert.deepEqual(sceneLights, lights.headlights, 'rear neon must not add a point hotspot');
   assert.ok(sceneLights.every((light) => light.isSpotLight));
-  const baseline = lights.rearMaterials.map((material) => material.emissiveIntensity);
+  const baseline = lights.rearMaterials.map((material) => material.color.clone());
   lights.update({ stage: 'success', inContact: true, braking: 1 });
   lights.rearMaterials.forEach((material, index) =>
-    assert.ok(material.emissiveIntensity > baseline[index]),
+    assert.ok(material.color.r > baseline[index].r),
   );
   lights.reset();
   lights.rearMaterials.forEach((material, index) =>
-    assert.equal(material.emissiveIntensity, baseline[index]),
+    assert.ok(material.color.equals(baseline[index])),
   );
 });
 

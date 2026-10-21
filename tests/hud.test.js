@@ -47,20 +47,20 @@ function createHarness() {
   return { ui, game, hud: createHud(ui) };
 }
 
-test('side assist identifies the actual correction and clears the opposite indicator', () => {
+test('side assist identifies its correction without directional buttons', () => {
   const { ui, game, hud } = createHarness();
   game.assist.active = true;
   game.assist.strafe = 0.6;
   hud.update(game);
   assert.match(ui['assist-status'].textContent, /CORRECTING RIGHT/);
-  assert.equal(ui['assist-strafe-right'].classList.contains('auto-active'), true);
-  assert.equal(ui['assist-strafe-left'].classList.contains('auto-active'), false);
+  assert.equal(ui['assist-indicator'].classList.contains('active'), true);
+  assert.equal('assist-strafe-left' in ui, false);
+  assert.equal('assist-strafe-right' in ui, false);
 
   game.assist.strafe = -0.4;
   hud.update(game);
   assert.match(ui['assist-status'].textContent, /CORRECTING LEFT/);
-  assert.equal(ui['assist-strafe-left'].classList.contains('auto-active'), true);
-  assert.equal(ui['assist-strafe-right'].classList.contains('auto-active'), false);
+  assert.equal(ui['assist-indicator'].classList.contains('active'), true);
 });
 
 test('inactive, depleted and contact states do not claim the computer is firing', () => {
@@ -68,20 +68,19 @@ test('inactive, depleted and contact states do not claim the computer is firing'
   game.assist.strafe = 0.7;
   hud.update(game);
   assert.match(ui['assist-status'].textContent, /MONITORING/);
-  assert.equal(ui['assist-strafe-right'].classList.contains('auto-active'), false);
+  assert.equal(ui['assist-indicator'].classList.contains('active'), false);
 
   game.assist.active = true;
   game.fuel = 0;
   hud.update(game);
   assert.match(ui['assist-status'].textContent, /GAS DEPLETED/);
   assert.equal(ui['assist-indicator'].classList.contains('active'), false);
-  assert.equal(ui['assist-strafe-right'].classList.contains('auto-active'), false);
 
   game.fuel = 100;
   game.stage = 'drive';
   game.inContact = true;
   hud.update(game);
-  assert.equal(ui['assist-strafe-right'].classList.contains('auto-active'), false);
+  assert.equal(ui['assist-indicator'].classList.contains('active'), false);
 });
 
 test('side assistance keeps roll guidance manual', () => {
