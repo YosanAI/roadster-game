@@ -4,7 +4,9 @@
 
 The game uses [Three.js](https://github.com/mrdoob/three), pinned to `0.180.0`, under its MIT license. The retained license is [THREE-LICENSE.txt](THREE-LICENSE.txt). The npm package includes its upstream license as well.
 
-All car/environment geometry, generated textures, particles, UI and synthesized audio in this repository are procedural application code. Event photographs were used as visual references and are not included in the distributed assets. Tesla and Roadster names identify the visual inspiration; this is an unofficial fan game.
+The car asset, [`src/assets/roadster-rocket.glb`](../src/assets/roadster-rocket.glb), was supplied by the user. The original GLB is bundled unchanged, including its four embedded PNG textures. The runtime adapter rigs and batches copies of its geometry and materials. The asset does not include a license notice in its glTF metadata; no additional asset license is asserted here.
+
+Environment geometry, generated asphalt/smoke textures, particles, UI and synthesized audio are procedural application code. Event photographs were used as visual references and are not included in the distributed assets. Tesla and Roadster names identify the visual inspiration; this is an unofficial fan game.
 
 ## Development tooling
 

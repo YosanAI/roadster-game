@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createRoadster } from './scene/createRoadster.js';
+import { loadRoadster } from './scene/createRoadster.js';
 import { createEnvironment } from './scene/createEnvironment.js';
 import { FlightGame, COURSE } from './game/FlightGame.js';
 import { createEffects } from './scene/createEffects.js';
@@ -31,7 +31,7 @@ export function startGameApp() {
     renderer.toneMappingExposure = 1.04;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    boot();
+    boot().catch(showFatal);
   } catch (error) {
     showFatal(error);
   }
@@ -41,13 +41,15 @@ export function startGameApp() {
     ui.loading.hidden = true;
     ui.fatal.hidden = false;
     ui['fatal-message'].textContent =
-      'The 3D scene could not start. Please use a browser with WebGL 2 and hardware acceleration enabled, then reload.';
+      error?.name === 'VehicleModelError'
+        ? error.message
+        : 'The 3D scene could not start. Please use a browser with WebGL 2 and hardware acceleration enabled, then reload.';
   }
 
-  function boot() {
+  async function boot() {
     const scene = new THREE.Scene();
     const environment = createEnvironment(scene);
-    const car = createRoadster();
+    const car = await loadRoadster();
     const game = new FlightGame();
     const audio = new GameAudio();
     const effects = createEffects(scene);
