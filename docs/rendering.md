@@ -90,19 +90,21 @@ distance = -worldOrigin.y / worldExhaustDirection.y;
 
 Only positive intersections inside the effective range, `6 + 2 * level` metres, produce ground clouds. This works while the car is airborne, including downward-pointing horizontal units when the car banks. An upward-pointing jet cannot disturb the ground.
 
-Closer, stronger jets emit more vapor. The outwash rushes radially across the asphalt in translucent, flattened sheets with little upward buoyancy. Its initial radial speed is roughly 9–17 m/s at full output, so the car stays visible instead of being buried in a dense fire-smoke cloud. Ground wisps last 2.4–3.6 seconds with an early, gradual fade. Jet vapor reaching the road also turns outward instead of bouncing upward. Existing vapor remains in world space when the car moves away. Touchdown dust and crash sparks are separate one-shot feedback; a crash also emits darker textured smoke briefly.
+Closer, stronger jets emit more vapor. Large numbers of translucent wisps expand rapidly around the car, with outward wash traveling at 10–16 m/s and some entrained gas rolling up through the body envelope. Their combined volume can engulf the car without increasing each wisp's opacity into a heavy fire-smoke billow. The cloud dilutes quickly: ground wisps last 1.35–2.25 seconds and fade early as they expand. Jet vapor reaching the road also turns outward instead of bouncing upward. Existing gas remains in world space when the car drives away.
+
+All ground-vapor quantity, expansion, spread, entrainment and lifetime values are grouped in [`effectsConfig.js`](../src/scene/effectsConfig.js) under `GROUND_VAPOR`. Increase `particlesPerSecond` for more volume, `entrainmentFraction` for more gas around/above the body, and `expansionPerSecond` for faster diffusion. Keep opacity low and use `lifetimeMin`/`lifetimeMax` to adjust how quickly it clears. The propulsion jets keep their previous tuning. Touchdown dust and crash sparks remain separate feedback.
 
 ### Fixed particle budget
 
 | Pool             | Capacity | Blending and purpose                                    |
 | ---------------- | -------: | ------------------------------------------------------- |
-| Smoke            |    2,048 | Normal blending; exhaust, ground clouds and crash smoke |
+| Smoke            |    3,072 | Normal blending; exhaust, ground clouds and crash smoke |
 | Crash sparks     |       32 | Additive point sprites; short impact sparks             |
 | Touchdown debris |       48 | Normal point sprites; contact dust                      |
 
 The smoke pool uses one instanced draw call and reusable typed arrays for simulation and GPU attributes. It uploads only live instances, sorted together across smoke kinds. Emission uses accumulated seconds rather than one particle per frame. At capacity, a ring buffer reuses the oldest slot. The atlas is shared across effects instances; no per-frame geometry or texture construction is required.
 
-`reset()` clears visibility, emission credits, crash continuations and wheel/plume animation while retaining the allocated objects and buffers. Pausing freezes aging and emission while still updating sort order if the camera orbits. The app passes the current camera as the optional fifth argument to `effects.update(dt, game, car, input, camera)`.
+`reset()` clears visibility, emission credits, crash continuations and wheel/plume animation while retaining the allocated objects and buffers. Pausing freezes aging and emission while still updating sort order if the camera orbits. The app passes the current camera as the optional fifth argument to `effects.update(dt, game, car, input, camera)`. An optional sixth argument, `{ vehiclePaused: true }`, freezes vehicle emissions and wheel animation under the result menu while existing vapor keeps dissipating.
 
 ## Lighting and performance knobs
 
@@ -114,13 +116,13 @@ Useful places to adjust rendering cost are:
 - **Shadow map size:** change the directional light configuration in `addLights` inside `createEnvironment.js`.
 - **Car detail:** choose `createRoadster({ detailed: false })` for fewer wheel segments and decorative parts.
 - **Ramp tessellation:** `createRampStrip` defaults to 112 segments. The visible strips and their normals use that subdivision.
-- **Particle capacity:** the smoke capacity in `createSmokePool.js` and the small point-pool constants in `createEffects.js` bound memory and effect density. Emission rates, smoke lifetime, expansion and opacity control cloud fullness and overdraw; check mobile performance when increasing them.
+- **Particle capacity:** `SMOKE_CAPACITY` in `effectsConfig.js` and the small point-pool constants in `createEffects.js` bound memory and effect density. Emission rates, smoke lifetime, expansion and opacity control cloud fullness and overdraw; check mobile performance when increasing them.
 
 Rendering tuning should preserve actuator IDs and directions, body scale, wheel radius and the riding surface shared with physics. Changing a force or collision tolerance belongs in the game modules rather than a visual effect.
 
 ## Audio and lifecycle
 
-`GameAudio` creates its Web Audio graph only when sound is enabled. Enable it from a user click or tap. A continuous sine oscillator represents the motor; filtered noise represents suction and actual jet output. Temporary result tones disconnect their nodes when finished.
+`GameAudio` creates its Web Audio graph only when sound is enabled. Enable it from a user click or tap. A continuous sine oscillator represents the motor; filtered noise represents suction and actual jet output. The suction noise starts only when the tyres reach the ramp (`climb`/`inverted` contact stages); the approach road and safe drive-away use motor sound without suction. Temporary result tones disconnect their nodes when finished.
 
 For compatibility, `effects.update(dt, game, car, input)` and `audio.update(game, input, paused)` still accept an `input` argument. Neither uses raw controls to invent actuator activity: both read simulation state. Pass elapsed seconds through the app's frame loop, copy the pose before the effects update, and call touchdown feedback once when entering a terminal result state.
 

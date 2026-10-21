@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createSmokePool } from './createSmokePool.js';
+import { GROUND_VAPOR } from './effectsConfig.js';
 
 const SPARK_COUNT = 32;
 const DEBRIS_COUNT = 48;
@@ -162,7 +163,7 @@ function createParticlePool(scene, count, { additive, name, flatten = 1 }) {
  *
  * Textured, depth-sorted smoke billboards share one fixed GPU pool. Ground
  * outwash is emitted at exhaust/ground intersections during the burn and curls
- * outward in thin, fast sheets, lingering for 2.4–3.6 seconds. Separate small
+ * outward in plentiful, translucent clouds that rapidly dilute. Separate small
  * point pools preserve the fast sparks and one-shot touchdown debris.
  *
  * @param {THREE.Scene} scene The scene receiving the reusable particle objects.
@@ -218,20 +219,35 @@ export function createEffects(scene) {
 
   function emitGroundMist(level, closeness) {
     const angle = Math.random() * Math.PI * 2;
-    const spread = (6 + level * 7) * (0.7 + Math.random() * 0.6);
+    const entrained = Math.random() < GROUND_VAPOR.entrainmentFraction;
+    const spread =
+      THREE.MathUtils.lerp(
+        GROUND_VAPOR.outwardSpeedMin,
+        GROUND_VAPOR.outwardSpeedMax,
+        Math.random(),
+      ) *
+      (0.55 + level * 0.45) *
+      (entrained ? GROUND_VAPOR.entrainmentOutwardFactor : 1);
     point.copy(impactPoint);
     point.x += (Math.random() - 0.5) * 0.35;
-    point.y = 0.16 + Math.random() * 0.12;
+    point.y = 0.25 + Math.random() * 0.25;
     point.z += (Math.random() - 0.5) * 0.35;
     velocity.set(
       Math.cos(angle) * spread + direction.x * 1.5,
-      0.15 + Math.random() * 0.5,
+      THREE.MathUtils.lerp(
+        GROUND_VAPOR.upwardSpeedMin,
+        GROUND_VAPOR.upwardSpeedMax,
+        Math.random(),
+      ) + (entrained ? GROUND_VAPOR.entrainmentUpwardBoost : 0),
       Math.sin(angle) * spread + direction.z * 1.5,
     );
     smoke.spawn(point, velocity, {
-      life: 2.4 + Math.random() * 1.2,
-      size: 0.45 + Math.random() * 0.4 + closeness * 0.2,
-      alpha: (0.12 + level * 0.1) * (0.55 + closeness * 0.45),
+      life: THREE.MathUtils.lerp(GROUND_VAPOR.lifetimeMin, GROUND_VAPOR.lifetimeMax, Math.random()),
+      size: THREE.MathUtils.lerp(GROUND_VAPOR.sizeMin, GROUND_VAPOR.sizeMax, Math.random()),
+      alpha:
+        (GROUND_VAPOR.opacity + Math.random() * GROUND_VAPOR.opacityVariation) *
+        (0.55 + closeness * 0.45) *
+        (0.65 + level * 0.35),
       kind: 1,
     });
   }
@@ -243,8 +259,9 @@ export function createEffects(scene) {
    * @param {THREE.Group} car The group returned by createRoadster.
    * @param {object} [input] Reserved for API compatibility; actual actuator levels drive jets.
    * @param {THREE.Camera} [camera] Current view for back-to-front smoke sorting.
+   * @param {{vehiclePaused?: boolean}} [options] Keep vapor fading while the result menu freezes the car.
    */
-  function update(dt, game, car, input = {}, camera) {
+  function update(dt, game, car, input = {}, camera, { vehiclePaused = false } = {}) {
     if (!Number.isFinite(dt) || dt < 0) return;
     if (dt === 0) {
       // Orbiting remains available while paused; re-sort without aging/emitting.
@@ -255,7 +272,7 @@ export function createEffects(scene) {
     elapsed += dt;
     bind(car);
 
-    if (car && game) {
+    if (car && game && !vehiclePaused) {
       car.updateWorldMatrix(true, false);
       for (let i = 0; i < emitters.length; i++) {
         const emitter = emitters[i];
@@ -338,7 +355,11 @@ export function createEffects(scene) {
         if (hitsGround) {
           impactPoint.copy(origin).addScaledVector(direction, rayDistance);
           groundCredit[i] +=
-            dt * (8 + level * 30) * (0.25 + closeness * 0.75) * emitter.emissionShare;
+            dt *
+            GROUND_VAPOR.particlesPerSecond *
+            level *
+            (0.25 + closeness * 0.75) *
+            emitter.emissionShare;
           // A first wisp appears immediately when an active jet reaches the
           // asphalt, including burns made while the vehicle is still airborne.
           if (!wasActive) groundCredit[i] = Math.max(1, groundCredit[i]);

@@ -32,7 +32,7 @@ const HANDLED_KEYS = new Set([
 /**
  * Combines keyboard and multi-touch buttons into one reusable physics command.
  *
- * getContext() returns { game, paused, helpOpen }. The app owns those values;
+ * getContext() returns { game, paused, helpOpen, resultOpen }. The app owns those values;
  * this controller only owns held input and DOM listeners.
  */
 export class InputController {
@@ -55,8 +55,16 @@ export class InputController {
   }
 
   isAvailable(action) {
-    const { game, paused, helpOpen } = this.getContext();
-    if (game.stage === 'ready' || game.result || paused || helpOpen) return false;
+    const { game, paused, helpOpen, resultOpen } = this.getContext();
+    const canDriveAfterLanding = game.stage === 'success' && game.inContact;
+    if (
+      game.stage === 'ready' ||
+      (game.result && !canDriveAfterLanding) ||
+      paused ||
+      helpOpen ||
+      resultOpen
+    )
+      return false;
     return DRIVE_ACTIONS.has(action) ? game.inContact : !game.inContact;
   }
 
@@ -92,7 +100,7 @@ export class InputController {
   }
 
   /**
-   * suppressHeld requires a fresh press after the drive → flight transition.
+   * suppressHeld requires a fresh press after either drive/flight mode transition.
    * resetHeld is used when focus/visibility is lost and keyup may never arrive.
    */
   clear({ suppressHeld = false, resetHeld = false } = {}) {

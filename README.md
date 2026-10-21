@@ -87,7 +87,7 @@ Three.js is the only runtime package. The physics is a small, explicit JavaScrip
 
 ## Where to change things
 
-Start with **`src/game/config.js`** for gravity, mass, motor power, suction, braking, damage tolerance and course dimensions. SI units are documented beside the values.
+Start with **`src/game/config.js`** for gravity, mass, motor power, suction, braking, damage tolerance and course dimensions. SI units are documented beside the values. Ground-gas quantity, spread, expansion and dissipation are grouped under `GROUND_VAPOR` in **`src/scene/effectsConfig.js`**. Suction sound starts when the tyres meet the ramp; flat-road driving has motor sound only.
 
 Edit **`src/game/thrusters.js`** for nozzle positions, directions and maximum force. The solver uses four local +Y lift groups and four local X/Z horizontal control groups. Each forward/reverse surge group drives the four rear outlets, with reverse represented by outward/forward exhaust deflection. See the rendering documentation for outlet positions.
 
@@ -114,7 +114,7 @@ The on-screen buttons support simultaneous holds. A held driving key must be rel
 
 For a first attempt, approach the edge around 30 km/h, roll upright after departure, then pulse lift and brake forward/backward drift. The computer cancels sideways drift; the SIDE ASSIST indicator and green side controls show when it fires. Manual A/D input overrides that assistance. Releasing a roll button commands a real counter-roll burn from the opposite lift pair; it does not automatically level the car.
 
-A safe landing displays **Landed safe. More levels coming soon.** A damaging landing displays **Game over.**, its cause, impact speed and tilt. Retry from the top starts stopped on the inverted lip; replay starts from the road.
+A safe landing immediately restores PEDAL / BRAKE so you can drive away. After two unpaused seconds it displays **Landed safe. More levels coming soon.** Tune the delay with `PRESENTATION.successMenuDelaySeconds` in `src/game/config.js`. A damaging landing displays **Game over.**, its cause, impact speed and tilt. Retry from the top starts stopped on the inverted lip; replay starts from the road.
 
 ## Physics model
 
@@ -132,7 +132,7 @@ npm run check
 npm run build
 ```
 
-The physics suite covers the eight nozzle directions, exact gravity, gradual driving acceleration, braking/holding, wall rollback, contact loss, force and torque from roll, counter-roll fuel use, disabled pitch, collisions, damage thresholds and complete successful digital-control flights at several update rates. Clock tests cover uneven render timing, pause/slow behavior and input clearing within a frame. Input tests cover key mappings and the held-pedal handoff. Additional suites cover side assistance, its HUD indicators, moving-nozzle jet continuity, rear outlet groups and vapor persistence.
+The physics suite covers the eight nozzle directions, exact gravity, gradual driving acceleration, braking/holding, wall rollback, contact loss, force and torque from roll, counter-roll fuel use, disabled pitch, collisions, damage thresholds and complete successful digital-control flights at several update rates. Clock tests cover uneven render timing, pause/slow behavior and input clearing within a frame. Input tests cover key mappings and the held-pedal handoff. Additional suites cover side assistance, its HUD indicators, moving-nozzle jet continuity, rear outlet groups, plentiful/fast-diffusing ground vapor, ramp-only suction audio and safe drive-away controls.
 
 For the repository refactor, numerical state was compared with the published game across **1,901 snapshots**, including full safe flights and a crash/reset sequence, with exact matches. Car and environment geometry/material/instance data and deterministic particle states also matched. Recent effects and control changes were also checked with headless Chromium, including mobile viewport emulation. Physical-device playtesting remains separate from those browser checks.
 

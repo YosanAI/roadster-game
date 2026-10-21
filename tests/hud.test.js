@@ -92,3 +92,35 @@ test('side assistance keeps roll guidance manual', () => {
   assert.equal(ui['coach-title'].textContent, 'ROLL UPRIGHT');
   assert.match(ui['coach-detail'].textContent, /Q or E/);
 });
+
+test('safe touchdown shows live pedal driving while the menu preserves landing metrics', (t) => {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { body: { dataset: {}, classList: { add() {} } } },
+  });
+  t.after(() => {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete globalThis.document;
+  });
+  const { ui, game, hud } = createHarness();
+  game.stage = 'success';
+  game.inContact = true;
+  game.driveSpeed = 2.4;
+  game.result = { safe: true, impact: 1.8, tiltDegrees: 9 };
+  hud.setStage(game, 'drive');
+  hud.update(game);
+  assert.equal(ui['drive-controls'].hidden, false);
+  assert.equal(ui['flight-controls'].hidden, true);
+  assert.equal(ui['drive-caption'].textContent, 'DRIVE / GROUND');
+  assert.equal(ui['motion-label'].textContent, 'SPEED');
+  assert.equal(ui['motion-unit'].textContent, 'km/h');
+  assert.equal(ui.descent.textContent, '8.6');
+  assert.equal(ui.tilt.textContent, 0);
+  assert.equal(ui['coach-title'].textContent, 'LANDED / DRIVE AWAY');
+  assert.equal(ui.coach.hidden, false);
+  hud.showResult(game.result);
+  assert.equal(ui.coach.hidden, true);
+  assert.match(ui['result-impact'].innerHTML, /^1\.8 /);
+  assert.match(ui['result-tilt'].innerHTML, /^9\.0 /);
+});

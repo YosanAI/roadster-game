@@ -191,9 +191,54 @@ export class FlightGame {
       if (this.stage === 'drive' || this.stage === 'climb' || this.stage === 'inverted')
         this._stepContact(h, commands);
       else if (this.stage === 'flight') this._stepFlight(h, commands);
-      else if (this.stage === 'success' || this.stage === 'crashed') break;
+      else if (this.stage === 'success' && this.inContact) this._stepLanded(h, commands);
+      else if (this.stage === 'crashed') break;
       this.time += h;
     }
+  }
+
+  /** Continue on the flat apron from the actual touchdown pose, off the ramp path. */
+  _stepLanded(dt, { throttle, brake }) {
+    this._clearAssist();
+    this._point.copy(FORWARD).applyQuaternion(this.quaternion).setY(0).normalize();
+    const oldSpeed = this.velocity.dot(this._point);
+    this._acceleration.copy(this.velocity).addScaledVector(this._point, -oldSpeed).setY(0);
+    const sidewaysSpeed = this._acceleration.length();
+    const normalLoad = VEHICLE.mass * GRAVITY;
+    const tractionLimit = VEHICLE.tyreFriction * normalLoad;
+    // Tyre grip arrests any tolerated sideways touchdown motion without a
+    // position snap. Share the grip budget with longitudinal pedal/brake force.
+    const sideForce = Math.min(tractionLimit, (sidewaysSpeed * VEHICLE.mass) / dt);
+    const longitudinalGrip = Math.sqrt(Math.max(0, tractionLimit ** 2 - sideForce ** 2));
+    const motorForce =
+      throttle *
+      Math.min(
+        VEHICLE.maxMotorForce,
+        longitudinalGrip,
+        VEHICLE.motorPower / Math.max(3, Math.abs(oldSpeed)),
+      );
+    const brakeForce = brake * Math.min(VEHICLE.maxBrakeForce, longitudinalGrip);
+    const rollingForce = VEHICLE.rollingResistance * normalLoad;
+    const dragForce = 0.5 * VEHICLE.airDensity * VEHICLE.dragArea * oldSpeed * Math.abs(oldSpeed);
+    const drivingForce = motorForce - dragForce;
+    const resistance = rollingForce + brakeForce;
+    let newSpeed;
+    if (Math.abs(oldSpeed) < 0.02 && Math.abs(drivingForce) <= resistance) newSpeed = 0;
+    else {
+      const direction = Math.abs(oldSpeed) >= 0.02 ? Math.sign(oldSpeed) : Math.sign(drivingForce);
+      newSpeed = oldSpeed + ((drivingForce - resistance * direction) / VEHICLE.mass) * dt;
+      if (oldSpeed * newSpeed < 0 && Math.abs(drivingForce) <= resistance) newSpeed = 0;
+    }
+    const newSidewaysSpeed = Math.max(0, sidewaysSpeed - (sideForce / VEHICLE.mass) * dt);
+    if (sidewaysSpeed > 0) this._acceleration.multiplyScalar(newSidewaysSpeed / sidewaysSpeed);
+    this.position.addScaledVector(this.velocity, dt * 0.5);
+    this.velocity.copy(this._point).multiplyScalar(newSpeed).add(this._acceleration).setY(0);
+    this.position.addScaledVector(this.velocity, dt * 0.5);
+    this.position.y = COURSE.rideHeight;
+    this.driveSpeed = newSpeed;
+    this.braking = brake;
+    this.thrust = 0;
+    this.thrusterLevels.fill(0);
   }
 
   _positionOnTrack() {
@@ -488,7 +533,6 @@ export class FlightGame {
     this.result = { ...metrics, safe, reason, reasonCode, onRoad };
     this.stage = safe ? 'success' : 'crashed';
     this.inContact = true;
-    this.driveSpeed = 0;
     if (safe) {
       // The suspension absorbs the tolerated residual tilt while preserving
       // the heading at touchdown.
@@ -496,8 +540,13 @@ export class FlightGame {
       const yaw = Math.atan2(-this._point.z, this._point.x);
       this.quaternion.setFromAxisAngle(UP, yaw);
       this.position.y = COURSE.rideHeight;
+      this.velocity.y = 0;
+      this._point.copy(FORWARD).applyQuaternion(this.quaternion);
+      this.driveSpeed = this.velocity.dot(this._point);
+    } else {
+      this.driveSpeed = 0;
+      this.velocity.set(0, 0, 0);
     }
-    this.velocity.set(0, 0, 0);
     this.angularVelocity.set(0, 0, 0);
     this.thrust = 0;
     this.braking = 0;

@@ -6,7 +6,7 @@ The repository uses native JavaScript modules. Vite handles the development serv
 
 `FlightGame` is the authoritative game state. It owns pose, linear and angular velocity, contact, stage, driving speed, fuel, eight actuator levels, side-assist state and the landing result. It imports Three.js math primitives but never accesses the DOM, a renderer, an audio context or browser timing.
 
-`app.js` assembles the components and owns presentation lifecycle: attempts, the result delay, pause, optional slow motion and the frame clock. It copies the physics pose to the rendered car. Scene modules never integrate vehicle motion themselves.
+`app.js` assembles the components and owns presentation lifecycle: attempts, the result delay, pause, optional slow motion and the frame clock. It copies the physics pose to the rendered car. Safe touchdown restores ground controls immediately; `PRESENTATION.successMenuDelaySeconds` sets the unpaused drive-away interval before the result menu freezes vehicle motion/input. Existing particles keep fading behind that menu. Scene modules never integrate vehicle motion themselves.
 
 `InputController` owns held keyboard codes, pointer holds and focused-button holds. It returns one stable command object. Stability matters at departure: `onStageChange()` clears that same object between simulation slices, so a still-held pedal cannot become a jet later in the current frame.
 

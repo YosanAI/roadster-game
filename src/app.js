@@ -11,6 +11,7 @@ import { createContactShadow } from './scene/createContactShadow.js';
 import { advanceSimulation } from './game/advanceSimulation.js';
 import { getUiElements } from './ui/elements.js';
 import { createHud } from './ui/createHud.js';
+import { PRESENTATION } from './game/config.js';
 
 /** Assemble one game page: physics, renderers, input and presentation stay separate. */
 export function startGameApp() {
@@ -72,7 +73,12 @@ export function startGameApp() {
     let toastTimer;
     const inputs = new InputController({
       buttons: document.querySelectorAll('[data-action]'),
-      getContext: () => ({ game, paused, helpOpen: ui['help-dialog'].open }),
+      getContext: () => ({
+        game,
+        paused,
+        helpOpen: ui['help-dialog'].open,
+        resultOpen: resultShown,
+      }),
       onShortcut,
       onVisibilityChange: () => {
         lastTime = performance.now();
@@ -134,11 +140,12 @@ export function startGameApp() {
       const inverted = s === 'inverted';
       const flight = s === 'flight';
       const finished = s === 'success' || s === 'crashed';
-      const controlMode = s === 'ready' || finished ? 'idle' : game.inContact ? 'drive' : 'flight';
+      const controlMode =
+        s === 'ready' || s === 'crashed' ? 'idle' : game.inContact ? 'drive' : 'flight';
       if (controlMode !== priorControlMode) {
-        // A held road pedal must not become a horizontal jet at the edge.
-        // Require a fresh press after the automatic mode switch.
-        inputs.clear({ suppressHeld: priorControlMode === 'drive' && controlMode === 'flight' });
+        // Neither road pedals nor held flight jets may carry into the other
+        // control mode. A fresh press is required after either contact change.
+        inputs.clear({ suppressHeld: priorControlMode !== 'idle' && controlMode !== 'idle' });
         priorControlMode = controlMode;
       }
       hud.setStage(game, controlMode);
@@ -149,8 +156,12 @@ export function startGameApp() {
         audio.tone(240, 0.12, 0.09, 0.06);
       }
       if (finished) {
-        inputs.clear();
-        resultDelay = 0.75;
+        resultDelay = Math.max(
+          0,
+          s === 'success'
+            ? PRESENTATION.successMenuDelaySeconds
+            : PRESENTATION.crashMenuDelaySeconds,
+        );
         audio.touchdown(s === 'success');
         effects.touchdown(s === 'success', game.result.impact, game.position);
         car.userData.markDamaged?.(s === 'crashed');
@@ -161,6 +172,8 @@ export function startGameApp() {
     function showResult() {
       if (resultShown) return;
       resultShown = true;
+      inputs.clear();
+      inputs.syncAvailability();
       hud.showResult(game.result);
     }
 
@@ -307,23 +320,37 @@ export function startGameApp() {
       elapsed += dt;
       inputs.sample();
       const isPaused = paused || ui['help-dialog'].open;
+      const wasResultPending = Boolean(game.result) && !resultShown;
       const effectsDt = advanceSimulation(game, input, realDt, {
-        paused: isPaused,
+        paused: isPaused || resultShown,
         slowMotion: slow,
         onStep: onStageChange,
       });
       car.position.copy(game.position);
       car.quaternion.copy(game.quaternion);
       updateCamera(dt);
-      effects.update(Math.min(effectsDt, 0.1), game, car, input, camera);
+      // Freeze the vehicle under the result menu, while letting residual gas
+      // and touchdown particles continue to dissipate behind it.
+      effects.update(
+        isPaused ? 0 : resultShown ? dt : Math.min(effectsDt, 0.1),
+        game,
+        car,
+        input,
+        camera,
+        {
+          vehiclePaused: resultShown,
+        },
+      );
       environment.update(elapsed, game.stage);
-      audio.update(game, input, isPaused);
+      audio.update(game, input, isPaused || resultShown);
       contactShadow.position.set(game.position.x, 0.023, game.position.z);
       contactShadow.material.opacity = Math.max(0.08, 0.43 - game.position.y * 0.011);
       const shadowScale = 1 + Math.max(0, game.position.y - COURSE.rideHeight) * 0.024;
       contactShadow.scale.set(shadowScale, shadowScale, 1);
-      if (game.result && !resultShown) {
-        resultDelay -= dt;
+      if (game.result && !resultShown && !isPaused) {
+        // Begin counting on the frame after touchdown, so a slow impact frame
+        // cannot consume the player's drive-away window. Zero remains immediate.
+        if (wasResultPending) resultDelay -= realDt;
         if (resultDelay <= 0) showResult();
       }
       hudElapsed += dt;

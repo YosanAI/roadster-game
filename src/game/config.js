@@ -27,6 +27,12 @@ export const LIMITS = Object.freeze({
 /** Downward gravitational acceleration in m/s². */
 export const GRAVITY = 9.8;
 
+/** Real, unpaused seconds after touchdown before the result menu appears. */
+export const PRESENTATION = Object.freeze({
+  successMenuDelaySeconds: 2,
+  crashMenuDelaySeconds: 0.75,
+});
+
 // Plausible game parameters, not measured specifications of the demonstration
 // vehicle. The fan supplies adhesion; the motor still has to lift the car.
 /** Vehicle force, inertia, control, and gas-use tuning in SI units. */

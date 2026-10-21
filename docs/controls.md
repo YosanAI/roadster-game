@@ -13,15 +13,19 @@ leaving the edge, release any driving key before pressing a flight control.
 
 ## Driving controls
 
-These controls are available during the `drive`, `climb`, and `inverted` stages.
-They are disabled while the game is ready, paused, showing help, or finished.
+These controls are available during the `drive`, `climb`, and `inverted` stages,
+and immediately after a safe touchdown before the result menu opens. They are
+disabled while the game is ready, paused, showing help or a result menu, or crashed.
 
 | Action     | Keyboard                        | Touch or mouse | Input field    |
 | ---------- | ------------------------------- | -------------- | -------------- |
 | Accelerate | Hold **W** or **↑**             | Hold **PEDAL** | `throttle = 1` |
 | Brake      | Hold **S**, **↓**, or **Space** | Hold **BRAKE** | `brake = 1`    |
 
-Suction maintains contact; it does not propel the car. Gravity still acts along
+On the ramp, suction maintains contact; it does not propel the car. Its sound
+starts when the car reaches the ramp and stops when it leaves. The flat road
+and post-landing drive-away use the motor and tyres without suction noise.
+Gravity still acts along
 the slope, so releasing the pedal can let the car slow down or roll backward.
 The brake opposes motion and can hold a stopped car on the wall. Driving follows
 the fixed course centerline; there is no steering input during contact.
@@ -98,6 +102,22 @@ keyboard-focused pedal: hiding and disabling that pedal can move focus, but
 the physical key remains blocked until released. A touch or mouse hold is
 cleared at departure too; press the desired flight button again.
 
+## Safe touchdown and driving away
+
+Safe ground contact immediately restores **PEDAL** / **BRAKE**, retaining the
+actual landing position and heading. Release any flight keys or touch holds,
+then press a pedal again: a held W jet cannot become the accelerator, and a
+held Space lift cannot become a wheel brake. The car keeps its horizontal
+momentum while tyre grip settles sideways slip. The main telemetry switches
+back to live driving speed; the eventual result panel keeps the original
+touchdown impact and tilt.
+
+The safe-landing menu waits **2 seconds** by default, allowing a short drive-away.
+Tune `PRESENTATION.successMenuDelaySeconds` in `src/game/config.js` to change
+this interval. `PRESENTATION.crashMenuDelaySeconds` separately controls the crash
+menu delay. Opening the result menu stops driving input and pauses vehicle motion;
+the damaged car cannot drive away after a failed landing.
+
 ## Keyboard focus, pointer capture, and interrupted input
 
 - **Tab** and **Shift+Tab** move through the available interface controls. A
@@ -109,9 +129,9 @@ cleared at departure too; press the desired flight button again.
 - Hold buttons capture their pointer. Moving outside a button while holding
   continues the action; pointer release, cancellation, or lost capture ends
   it. Each pointer is tracked separately for simultaneous touch controls.
-- Opening or closing help, pausing, starting an attempt, and finishing an
-  attempt clear active input. The ready, result, pause, and help states cannot
-  apply driving or flight commands.
+- Opening or closing help, pausing, starting an attempt, changing drive/flight
+  mode, and opening the result menu clear active input. The ready, visible
+  result menu, pause, and help states cannot apply driving or flight commands.
 - Window blur and page visibility changes clear active and blocked key
   tracking. The hidden page does not advance the game. Returning to it resets
   the frame clock so background time does not become a large simulation step.
