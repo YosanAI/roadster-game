@@ -238,6 +238,31 @@ test('ground wash spreads quickly as light vapor and clears after a short linger
   assert.equal(h.particles().length, 0, 'vapor should clear within a few seconds of cutoff');
 });
 
+test('plentiful ground vapor expands above the car while individual wisps stay thin', () => {
+  const h = createHarness({ active: [0, 1, 2, 3] });
+  h.advance(0.8);
+  const cloud = h.particles(1);
+  const heightRatio = h.smoke.material.uniforms.groundAspect.value.y;
+  const enveloping = cloud.filter(
+    (p) =>
+      Math.abs(p.x) < 2.5 + p.size / 2 &&
+      Math.abs(p.z) < 1 + p.size / 2 &&
+      p.y + (p.size * heightRatio) / 2 > h.car.position.y + 0.6,
+  );
+  assert.ok(enveloping.length > 10, 'many expanding wisps must surround and reach above the body');
+  assert.ok(
+    cloud.some((p) => Math.abs(p.x) < 2.5 && Math.abs(p.z) < 1.5 && p.y > h.car.position.y),
+    'entrained gas must roll up through the body envelope, not leave a clear central hole',
+  );
+  assert.ok(
+    cloud.every((p) => p.alpha < 0.4),
+    'volume must come from overlapping translucent gas',
+  );
+  h.game.thrusterLevels.fill(0);
+  h.advance(2.5);
+  assert.equal(h.particles().length, 0, 'the full cloud must dissipate promptly after cutoff');
+});
+
 test('a fast-falling car retains a continuous jet close to the moving nozzle at low frame rates', (t) => {
   let seed = 0x7a32bc;
   t.mock.method(Math, 'random', () => {

@@ -30,6 +30,7 @@ export function getUiElements(root = document) {
     'assist-strafe-left',
     'assist-strafe-right',
     'drive-controls',
+    'drive-caption',
     'control-mode-label',
     'telemetry-title',
     'motion-label',

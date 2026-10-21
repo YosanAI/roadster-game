@@ -77,8 +77,13 @@ export class GameAudio {
   update(game, input, paused = false) {
     if (!this.context || !this.enabled) return;
     const now = this.context.currentTime;
-    const moving = game.inContact && Math.abs(game.driveSpeed) > 0.08 && !paused;
-    const holding = game.inContact && game.stage !== 'ready' && !moving && !paused;
+    const driving =
+      game.inContact && ['drive', 'climb', 'inverted', 'success'].includes(game.stage) && !paused;
+    const moving = driving && Math.abs(game.driveSpeed) > 0.08;
+    const holding = driving && !moving;
+    // Adhesion is needed on the ramp, not along the flat approach or after
+    // touchdown. Motor and suction share no activation rule on the road.
+    const suction = driving && (game.stage === 'climb' || game.stage === 'inverted');
     const flying = game.stage === 'flight' && !paused;
     this.motor.frequency.setTargetAtTime(
       moving ? 100 + game.velocity.length() * 13 : 90,
@@ -90,7 +95,7 @@ export class GameAudio {
       ? [...game.thrusterLevels].reduce((sum, level) => sum + level, 0)
       : 0;
     const thrustNoise = flying ? activeJets * 0.14 : 0;
-    this.noiseGain.gain.setTargetAtTime(moving ? 0.1 : holding ? 0.07 : thrustNoise, now, 0.04);
+    this.noiseGain.gain.setTargetAtTime(suction ? (moving ? 0.1 : 0.07) : thrustNoise, now, 0.04);
     this.noiseFilter.frequency.setTargetAtTime(flying ? 2200 : 450, now, 0.08);
   }
 

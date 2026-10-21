@@ -93,7 +93,15 @@ function createHarness(t, actions = []) {
     controller.syncAvailability();
   }
 
-  return { controller, buttons, key, enterFlight };
+  function land() {
+    context.game.stage = 'success';
+    context.game.inContact = true;
+    context.game.result = { safe: true };
+    controller.clear({ suppressHeld: true });
+    controller.syncAvailability();
+  }
+
+  return { controller, buttons, key, enterFlight, land, context };
 }
 
 test('keyboard commands change from pedal/brake to body-relative thrust in flight', (t) => {
@@ -177,5 +185,51 @@ test('independent touch holds retain lift when the roll pointer is cancelled', (
   pointer('roll-left', 'pointercancel', 1);
   assert.deepEqual(controller.sample(), { ...IDLE_COMMAND, lift: 1 });
   pointer('lift', 'lostpointercapture', 2);
+  assert.deepEqual(controller.sample(), IDLE_COMMAND);
+});
+
+test('touchdown restores pedals but held flight keys require release before driving', (t) => {
+  const { controller, buttons, key, enterFlight, land, context } = createHarness(t, [
+    'pedal',
+    'drive-brake',
+    'lift',
+    'surge-forward',
+  ]);
+  enterFlight();
+  key('keydown', 'KeyW');
+  key('keydown', 'Space');
+  assert.deepEqual(controller.sample(), { ...IDLE_COMMAND, surge: 1, lift: 1 });
+  land();
+  assert.equal(buttons.pedal.disabled, false);
+  assert.equal(buttons['drive-brake'].disabled, false);
+  assert.equal(buttons.lift.disabled, true);
+  assert.equal(buttons['surge-forward'].disabled, true);
+  key('keydown', 'KeyW', { repeat: true });
+  key('keydown', 'Space', { repeat: true });
+  assert.deepEqual(
+    controller.sample(),
+    IDLE_COMMAND,
+    'held flight requests must not become pedals',
+  );
+  key('keyup', 'KeyW');
+  key('keyup', 'Space');
+  key('keydown', 'KeyW');
+  assert.deepEqual(controller.sample(), { ...IDLE_COMMAND, throttle: 1 });
+  key('keyup', 'KeyW');
+  key('keydown', 'Space');
+  assert.deepEqual(controller.sample(), { ...IDLE_COMMAND, brake: 1 });
+
+  context.resultOpen = true;
+  controller.syncAvailability();
+  assert.deepEqual(controller.sample(), IDLE_COMMAND, 'the result menu must block further driving');
+  assert.equal(buttons.pedal.disabled, true);
+});
+
+test('a crashed car cannot enable pedal controls even while touching the ground', (t) => {
+  const { controller, context, key } = createHarness(t);
+  context.game.stage = 'crashed';
+  context.game.result = { safe: false };
+  context.game.inContact = true;
+  key('keydown', 'KeyW');
   assert.deepEqual(controller.sample(), IDLE_COMMAND);
 });

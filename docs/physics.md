@@ -72,7 +72,7 @@ Missing or non-finite commands become zero, and values are clamped. There is no 
 | `climb`    | Attached to the curved wall. Gravity can make the car roll backward.        |
 | `inverted` | Attached to the upper lip. The accelerator and brake still control motion.  |
 | `flight`   | Detached; the eight nozzle outputs and gravity control motion.              |
-| `success`  | The touchdown passed all damage limits.                                     |
+| `success`  | Safe touchdown; pedal driving continues on the flat ground until the menu.  |
 | `crashed`  | A damaging touchdown, ramp collision, or flight boundary ended the attempt. |
 
 `reset()` restores the initial road state. `resetAtTop()` restores a stopped, attached car at the inverted retry position. It requires actual acceleration to drive off the lip. `release()` is a focused simulation/testing API that detaches from the inverted lip without an impulse; normal play leaves the edge automatically.
@@ -264,7 +264,7 @@ Impact speed is the maximum of zero, downward center-of-mass speed, and downward
 
 The painted target does not decide success. `result.onRoad` records whether the full footprint lies inside it, but a sound touchdown elsewhere on the apron also succeeds.
 
-Failure reasons are selected in the order orientation, impact, horizontal speed, then spin. All measured values remain in `result`. A safe touchdown settles the tolerated tilt, preserves heading, and stops the car. A crash also ends motion; post-impact tumbling and structural deformation are not simulated.
+Failure reasons are selected in the order orientation, impact, horizontal speed, then spin. All measured values remain in `result`. A safe touchdown settles the tolerated tilt, preserves heading and horizontal momentum, and restores pedal/brake driving from the actual landing position. Flat-ground tyre grip settles sideways slip and shares its available force with acceleration/braking; there is no suction load or return to the ramp path. The `success` stage and result metrics remain the touchdown snapshot while ground motion continues. The app shows the result menu after `PRESENTATION.successMenuDelaySeconds` (default 2 unpaused seconds), then freezes vehicle motion and input while allowing vapor to dissipate. A crash also ends motion; post-impact tumbling and structural deformation are not simulated.
 
 Airborne ramp collision checks use the support points against the elliptical sheet and inverted lip. Initial tyre contact with the lip is ignored until the full car has peeled away, preventing the existing release contact from being classified as a new collision. The curved wall stays active throughout departure.
 

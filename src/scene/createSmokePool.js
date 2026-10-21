@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GROUND_VAPOR, SMOKE_CAPACITY } from './effectsConfig.js';
 
 const ATLAS_GRID = 4;
 const TILE_SIZE = 64;
@@ -102,6 +103,7 @@ const vertexShader = `
   attribute float aKind;
   attribute vec3 aDirection;
   attribute float aStretch;
+  uniform vec2 groundAspect;
   varying vec2 vUv;
   varying float vAlpha;
   varying float vTile;
@@ -117,8 +119,8 @@ const vertexShader = `
       float stretch = 1.0 + (aStretch - 1.0) * lengthOnScreen;
       offset = (vec2(axis.y, -axis.x) * position.x + axis * position.y * stretch) * aSize;
     } else if (aKind < 1.5) {
-      // Thin, fast ground sheets rather than tall combustion-smoke billows.
-      offset = vec2(position.x * 1.7, position.y * 0.55) * aSize;
+      // Air entrains around the car in a full cloud, not a thin floor decal.
+      offset = position.xy * groundAspect * aSize;
     }
     vec4 center = viewMatrix * vec4(aOffset, 1.0);
     center.xy += offset;
@@ -154,7 +156,7 @@ const fragmentShader = `
 `;
 
 /** Camera-facing, depth-sorted smoke quads, shared by exhaust and ground clouds. */
-export function createSmokePool(scene, capacity = 2048) {
+export function createSmokePool(scene, capacity = SMOKE_CAPACITY) {
   const positions = new Float32Array(capacity * 3);
   const velocities = new Float32Array(capacity * 3);
   const directions = new Float32Array(capacity * 3);
@@ -197,7 +199,13 @@ export function createSmokePool(scene, capacity = 2048) {
   const material = new THREE.ShaderMaterial({
     vertexShader,
     fragmentShader,
-    uniforms: { smokeAtlas: { value: getSmokeAtlas() }, time: { value: 0 } },
+    uniforms: {
+      smokeAtlas: { value: getSmokeAtlas() },
+      time: { value: 0 },
+      groundAspect: {
+        value: new THREE.Vector2(GROUND_VAPOR.billboardWidth, GROUND_VAPOR.billboardHeight),
+      },
+    },
     transparent: true,
     depthWrite: false,
     depthTest: true,
@@ -251,7 +259,7 @@ export function createSmokePool(scene, capacity = 2048) {
       const j = i * 3;
       const ground = kinds[i] === 1;
       const jet = kinds[i] === 0;
-      const drag = Math.exp(-step * (ground ? 1.35 : jet ? 1.8 : 1.35));
+      const drag = Math.exp(-step * (ground ? GROUND_VAPOR.drag : jet ? 1.8 : 1.35));
       const age = duration[i] - life[i];
       // Fast air jets break into thin wisps. Ground wash runs outward instead
       // of building a buoyant, opaque column like hot fire smoke.
@@ -259,7 +267,7 @@ export function createSmokePool(scene, capacity = 2048) {
       velocities[j + 2] *= drag;
       velocities[j + 1] = velocities[j + 1] * drag + step * (ground ? 0.08 : jet ? 0.04 : 0.42);
       const phase = tiles[i] * 1.7 + age * 1.6;
-      const turbulence = ground ? 0.65 : jet ? 0.35 : 0.22;
+      const turbulence = ground ? GROUND_VAPOR.turbulence : jet ? 0.35 : 0.22;
       positions[j] +=
         (velocities[j] + Math.sin(phase + positions[j + 2]) * turbulence + 0.12) * step;
       positions[j + 1] += velocities[j + 1] * step;
@@ -298,7 +306,10 @@ export function createSmokePool(scene, capacity = 2048) {
       const fadeOut = 1 - THREE.MathUtils.smoothstep(progress, jet ? 0.08 : 0.12, 1);
       const j = i * 3;
       attributes.aOffset.setXYZ(slot, positions[j], positions[j + 1], positions[j + 2]);
-      attributes.aSize.setX(slot, size[i] + age * (ground ? 1.05 : jet ? 0.4 : 0.68));
+      attributes.aSize.setX(
+        slot,
+        size[i] + age * (ground ? GROUND_VAPOR.expansionPerSecond : jet ? 0.4 : 0.68),
+      );
       attributes.aAlpha.setX(slot, clamp(opacity[i] * fadeIn * fadeOut, 0, 1));
       attributes.aRotation.setX(slot, rotation[i]);
       attributes.aTile.setX(slot, tiles[i]);

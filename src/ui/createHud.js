@@ -11,20 +11,22 @@ export function createHud(ui, { coarsePointer = false } = {}) {
     ui['control-mode-label'].textContent = controlMode === 'flight' ? 'THRUST MODE' : 'DRIVE MODE';
     ui['drive-controls'].hidden = controlMode !== 'drive';
     ui['flight-controls'].hidden = controlMode !== 'flight';
-    ui.coach.hidden = s === 'ready' || finished;
+    ui.coach.hidden = s === 'ready' || s === 'crashed';
+    ui['drive-caption'].textContent =
+      s === 'climb' || inverted ? 'DRIVE / SUCTION ACTIVE' : 'DRIVE / GROUND';
     ui['stage-climb'].className =
       s === 'drive' || s === 'climb' ? 'active' : s !== 'ready' ? 'done' : '';
     ui['stage-release'].className = inverted ? 'active' : flight || finished ? 'done' : '';
     ui['stage-land'].className = flight ? 'active' : s === 'success' ? 'done' : '';
     const status = {
       ready: 'READY ON THE ROAD',
-      drive: 'DRIVE MODE / SUCTION ACTIVE',
+      drive: 'DRIVE MODE / GROUND',
       climb: 'DRIVE MODE / CLIMBING',
       inverted: 'DRIVE MODE / INVERTED',
       flight: game.assist?.enabled
         ? 'SUCTION OFF / ASSISTED FLIGHT'
         : 'SUCTION OFF / MANUAL FLIGHT',
-      success: 'TOUCHDOWN CONFIRMED',
+      success: 'LANDED SAFE / PEDAL CONTROLS',
       crashed: 'VEHICLE DAMAGED',
     };
     ui.status.textContent = status[s];
@@ -35,6 +37,7 @@ export function createHud(ui, { coarsePointer = false } = {}) {
   function showResult(result) {
     const safe = result.safe;
     ui.result.hidden = false;
+    ui.coach.hidden = true;
     ui.result.classList.toggle('crash', !safe);
     document.body.classList.add('result-open');
     ui['result-eyebrow'].textContent = safe
@@ -103,15 +106,15 @@ export function createHud(ui, { coarsePointer = false } = {}) {
     const t = game.getTelemetry();
     updateAssist(game);
     const finalMetrics = game.result;
-    const driving = game.inContact && !finalMetrics;
+    const driving = game.inContact && (!finalMetrics || game.stage === 'success');
     ui['telemetry-title'].textContent = driving ? 'DRIVE TELEMETRY' : 'FLIGHT TELEMETRY';
-    ui['motion-label'].textContent = finalMetrics ? 'IMPACT' : driving ? 'SPEED' : 'DESCENT';
+    ui['motion-label'].textContent = driving ? 'SPEED' : finalMetrics ? 'IMPACT' : 'DESCENT';
     ui['motion-unit'].textContent = driving ? 'km/h' : 'm/s';
     ui.altitude.textContent = t.altitude.toFixed(1);
     ui.descent.textContent = (
-      finalMetrics ? finalMetrics.impact : driving ? game.driveSpeed * 3.6 : t.descentSpeed
+      driving ? game.driveSpeed * 3.6 : finalMetrics ? finalMetrics.impact : t.descentSpeed
     ).toFixed(1);
-    const tilt = finalMetrics ? finalMetrics.tiltDegrees : t.tiltDegrees;
+    const tilt = finalMetrics && !driving ? finalMetrics.tiltDegrees : t.tiltDegrees;
     ui.tilt.textContent = Math.round(tilt);
     ui.descent.className = driving
       ? game.driveSpeed < -0.2
@@ -128,7 +131,13 @@ export function createHud(ui, { coarsePointer = false } = {}) {
     ui['fuel-progress'].style.width = `${t.fuel}%`;
     ui['fuel-progress'].style.background = t.fuel < 20 ? '#ef7765' : '#bfdce5';
     ui['climb-progress'].style.width = `${game.climbProgress * 100}%`;
-    if (game.stage === 'drive') {
+    if (game.stage === 'success' && game.inContact) {
+      ui.coach.className = 'coach success';
+      ui['coach-title'].textContent = 'LANDED / DRIVE AWAY';
+      ui['coach-detail'].textContent = coarsePointer
+        ? 'Release the flight controls, then hold PEDAL. BRAKE slows or stops the car.'
+        : 'Release the flight keys, then W / ↑ drives. S / ↓ brakes.';
+    } else if (game.stage === 'drive') {
       ui.coach.className = 'coach';
       ui['coach-title'].textContent =
         Math.abs(game.driveSpeed) < 0.2 ? 'PRESS THE PEDAL' : 'YOU ARE DRIVING';
