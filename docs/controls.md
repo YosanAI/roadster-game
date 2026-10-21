@@ -42,13 +42,17 @@ described below.
 | Roll left       | **Q**          | **ROLL L**     | `roll = +1`   |
 | Roll right      | **E**          | **ROLL R**     | `roll = -1`   |
 | Lift            | **Space**      | **LIFT**       | `lift = 1`    |
-| Forward thrust  | **W** or **↑** | **FORWARD**    | `surge = +1`  |
-| Backward thrust | **S** or **↓** | **BACK**       | `surge = -1`  |
-| Left thrust     | **A** or **←** | **LEFT**       | `strafe = -1` |
-| Right thrust    | **D** or **→** | **RIGHT**      | `strafe = +1` |
+| Forward thrust  | **W** or **↑** | Keyboard only  | `surge = +1`  |
+| Backward thrust | **S** or **↓** | Keyboard only  | `surge = -1`  |
+| Override left   | **A** or **←** | Keyboard only  | `strafe = -1` |
+| Override right  | **D** or **→** | Keyboard only  | `strafe = +1` |
 
-Directions are relative to the car, not the screen or the world. The interface
-calls the local forward/back and left/right controls **HORIZONTAL**. If the car
+The flight panel contains **ROLL L**, **ROLL R**, and **LIFT**. Forward/backward
+thrust and manual side overrides remain available on the keyboard, without
+on-screen directional buttons. Touch-only play has automatic sideways correction
+but no manual forward/backward thrust control.
+
+Directions are relative to the car, not the screen or the world. If the car
 is banked, a local sideways force can also have a vertical component in the
 world. Lift always pushes through the car's roof direction. While the car is
 fully inverted, that direction points toward the ground; roll upright before
@@ -57,15 +61,13 @@ using lift to slow the fall.
 ### Automatic side assist
 
 The computer cancels sideways drift during flight by firing the actual left/right
-jets. The **SIDE ASSIST** strip identifies its correction direction, and the
-corresponding **LEFT** or **RIGHT** control glows green while the computer is
-firing it. With no correction needed, the strip shows **MONITORING**. This is
-flight assistance, not an automatic landing: roll with Q/E, control descent with
+jets. The **SIDE ASSIST** strip turns green and identifies the correction
+direction while the computer is firing. With no correction needed, the strip
+shows **MONITORING**. This is flight assistance, not an automatic landing: roll with Q/E, control descent with
 LIFT, and brake forward/backward travel with W/S.
 
-Hold A/D, a left/right arrow, or a side button to override the computer on that
-axis. Release to return side control to the computer. Assistance uses the shared
-gas reserve and cannot produce thrust when the tank is empty. It does not change
+Hold A/D or a left/right arrow key to override the computer on that axis. Release
+to return side control to the computer. Assistance uses the shared gas reserve and cannot produce thrust when the tank is empty. It does not change
 the contact driving controls.
 
 Several controls can be held together, including with separate fingers.

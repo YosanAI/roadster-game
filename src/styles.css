@@ -1850,32 +1850,6 @@ body[data-control-mode='flight'] .mode-badge {
   border-color: #72848b45;
 }
 
-.control-button.auto-active {
-  background: #183c30ed;
-  color: #d6fbe5;
-  border-color: #a0e6bc;
-  box-shadow:
-    inset 0 0 16px #9cf3bf12,
-    0 0 16px #9cf3bf21;
-}
-
-.control-button.auto-active::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 5px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #acffcf;
-  box-shadow: 0 0 6px #acffcf80;
-}
-
-.control-button.auto-active.pressed {
-  background: #a9dff0;
-  color: #05161c;
-}
-
 .flight-controls .control-label {
   text-align: center;
   font-size: 7px;
@@ -1891,49 +1865,6 @@ body[data-control-mode='flight'] .mode-badge {
 
 .roll-group .control-symbol {
   font-size: 29px;
-}
-
-/* Flight mode: forward above the left / back / right row */
-.direction-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 50px);
-  grid-template-rows: repeat(2, 50px);
-  gap: 5px;
-}
-
-.direction-grid .control-button {
-  width: 50px;
-  height: 50px;
-  gap: 3px;
-}
-
-.direction-grid .control-symbol {
-  font-size: 22px;
-}
-
-.direction-grid .control-name {
-  font-size: 6px;
-  letter-spacing: 0.3px;
-}
-
-.direction-forward {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.direction-left {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.direction-back {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.direction-right {
-  grid-column: 3;
-  grid-row: 2;
 }
 
 .flight-controls .lift-button {
@@ -1969,7 +1900,7 @@ body.paused[data-control-mode='flight']:after {
   bottom: 263px;
 }
 
-/* Phone control footprints; keep the two-row flight controls above the footer */
+/* Phone control footprints; keep roll and lift together above the footer */
 @media (max-width: 700px) {
   .mode-badge {
     margin-top: 7px;
@@ -2003,11 +1934,10 @@ body.paused[data-control-mode='flight']:after {
 
   .flight-controls {
     bottom: 53px;
-    left: 17px;
-    right: 17px;
-    gap: 10px;
-    transform: none;
-    justify-content: space-between;
+    left: 50%;
+    right: auto;
+    gap: 24px;
+    transform: translateX(-50%);
   }
 
   .flight-controls .control-label,
@@ -2018,7 +1948,7 @@ body.paused[data-control-mode='flight']:after {
   }
 
   .roll-group .control-button {
-    width: 46px;
+    width: 58px;
     height: 98px;
   }
 
@@ -2031,28 +1961,8 @@ body.paused[data-control-mode='flight']:after {
     letter-spacing: 0.4px;
   }
 
-  .direction-grid {
-    grid-template-columns: repeat(3, 44px);
-    grid-template-rows: repeat(2, 47px);
-    gap: 4px;
-  }
-
-  .direction-grid .control-button {
-    width: 44px;
-    height: 47px;
-  }
-
-  .direction-grid .control-symbol {
-    font-size: 22px;
-  }
-
-  .direction-grid .control-name {
-    font-size: 5px;
-    letter-spacing: 0.15px;
-  }
-
   .flight-controls .lift-button {
-    width: 80px;
+    width: 100px;
     height: 98px;
   }
 
@@ -2080,28 +1990,6 @@ body.paused[data-control-mode='flight']:after {
 
 /* Narrow-phone controls */
 @media (max-width: 365px) {
-  .flight-controls {
-    left: 10px;
-    right: 10px;
-    gap: 6px;
-  }
-
-  .roll-group .control-button {
-    width: 42px;
-  }
-
-  .direction-grid {
-    grid-template-columns: repeat(3, 42px);
-  }
-
-  .direction-grid .control-button {
-    width: 42px;
-  }
-
-  .flight-controls .lift-button {
-    width: 65px;
-  }
-
   .flight-controls .control-label {
     font-size: 5.5px;
   }
@@ -2155,26 +2043,6 @@ body.paused[data-control-mode='flight']:after {
   .roll-group .control-button {
     width: 54px;
     height: 92px;
-  }
-
-  .direction-grid {
-    grid-template-columns: repeat(3, 44px);
-    grid-template-rows: repeat(2, 44px);
-    gap: 4px;
-  }
-
-  .direction-grid .control-button {
-    width: 44px;
-    height: 44px;
-    gap: 1px;
-  }
-
-  .direction-grid .control-symbol {
-    font-size: 19px;
-  }
-
-  .direction-grid .control-name {
-    font-size: 5px;
   }
 
   .flight-controls .lift-button {

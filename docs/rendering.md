@@ -62,9 +62,9 @@ The factory exposes these animation hooks on `car.userData`:
 
 The app reuses the car across attempts by resetting wheel/light animation and damage state. Separate cars adapted from the same parsed scene have independent geometry, materials and animation state.
 
-`createVehicleLights.js` illuminates the model's white headlamp guides and daytime strip, with two forward-facing spotlights. The rear light uses the uploaded model's full-width red blade and its existing `MeshPhysicalMaterial.emissive` colour. Its emission follows the exact geometry of the red strip, remaining visible independently of scene lighting. There is no central rear point light or circular spill. Actual grounded `game.braking` increases `emissiveIntensity` from `TAIL_INTENSITY` to `TAIL_INTENSITY + BRAKE_BOOST`; flight controls do not trigger brake lights. Those constants live at the top of `createVehicleLights.js`, and reset restores the normal lamp intensities.
+`createVehicleLights.js` illuminates the model's white headlamp guides and daytime strip, with two forward-facing spotlights. The rear light keeps the uploaded model's full-width red blade geometry and replaces only its material with `MeshBasicMaterial({ color: 0xff1736, toneMapped: false })`, matching the bright ramp/road LEDs. This unlit material stays saturated red independently of scene lighting and bypasses ACES tone mapping. There is no central rear point light or circular spill. Actual grounded `game.braking` boosts the strip's linear colour from `TAIL_BRIGHTNESS` to `TAIL_BRIGHTNESS + BRAKE_BOOST`; flight controls do not trigger brake lights. Those constants live at the top of `createVehicleLights.js`, and reset restores the normal lamp colour.
 
-This uses the standard [Three.js emissive material properties](https://threejs.org/docs/#MeshStandardMaterial.emissive). The model supplies the illuminated strip's shape; no additional light geometry, postprocessing or library is needed.
+The model supplies the illuminated strip's shape; no additional light geometry, postprocessing or library is needed. Increasing emissive intensity alone has no fixed maximum and still passes through tone mapping; using the same unlit material as the road LEDs gives the requested neon appearance directly.
 
 ## One registry for eight actuator groups
 
