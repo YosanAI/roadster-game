@@ -273,6 +273,7 @@ export function createEffects(scene) {
     bind(car);
 
     if (car && game && !vehiclePaused) {
+      car.userData.lights?.update(game);
       car.updateWorldMatrix(true, false);
       for (let i = 0; i < emitters.length; i++) {
         const emitter = emitters[i];
@@ -372,7 +373,7 @@ export function createEffects(scene) {
 
       if (game.inContact || ['drive', 'climb', 'inverted'].includes(game.stage)) {
         const speed = Number.isFinite(game.driveSpeed) ? game.driveSpeed : 0;
-        const spin = (-speed / 0.36) * dt;
+        const spin = (-speed / (car.userData.wheelRadius || 0.36)) * dt;
         for (const wheel of car.userData.wheels || []) wheel.rotation.z += spin;
       }
     }
@@ -477,6 +478,7 @@ export function createEffects(scene) {
       emitter.mesh.material.opacity = 0.52;
     }
     for (const wheel of boundCar?.userData?.wheels || []) wheel.rotation.z = 0;
+    boundCar?.userData?.lights?.reset();
   }
 
   return { update, touchdown, reset };

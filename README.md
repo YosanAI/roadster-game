@@ -2,7 +2,7 @@
 
 A complete **Three.js + vanilla JavaScript** game. Drive up a suction-assisted reverse-C ramp, leave the inverted lip, roll upright using lift pairs, and control the fall with lift jets, four rear propulsion outlets and automatic side-drift assistance. Roll and lift remain manual.
 
-This is the editable source repository for the current game, organized for continued development. The car, ramp, lighting, vapor and audio are procedural; no model downloads, API keys or backend are required.
+This is the editable source repository for the current game, organized for continued development. The detailed car model and its textures are bundled locally; the arena, vapor and audio are procedural. No external model host, API keys or backend are required.
 
 ## Quick start
 
@@ -74,7 +74,9 @@ Three.js is the only runtime package. The physics is a small, explicit JavaScrip
 | `src/game/advanceSimulation.js`    | Real-time frame advancement, pause and optional slow motion        |
 | `src/input/InputController.js`     | Keyboard, simultaneous touch buttons and mode transitions          |
 | `src/camera/CameraRig.js`          | Event/tracking/side cameras, orbiting, zoom and framing            |
-| `src/scene/createRoadster.js`      | Procedural car geometry and nozzle meshes                          |
+| `src/assets/roadster-rocket.glb`   | User-supplied detailed car model and embedded textures             |
+| `src/scene/createRoadster.js`      | Model loading, wheel rig, batching and nozzle anchors              |
+| `src/scene/createVehicleLights.js` | Headlights, rear light bar and grounded brake-light response       |
 | `src/scene/createEnvironment.js`   | Road, C-shaped wall, trusses, lights and markings                  |
 | `src/scene/createEffects.js`       | Exhaust, ground vapor, wheel animation and touchdown effects       |
 | `src/scene/createContactShadow.js` | Small procedural road-shadow cue                                   |
@@ -95,7 +97,7 @@ Edit **`src/input/InputController.js`** to change keyboard mappings or add an in
 
 Edit **`src/camera/CameraRig.js`** for framing and camera movement, and **`src/styles.css`** for UI appearance. Both keep camera gestures independent of car rotation.
 
-The scene modules use named helpers and sections for materials, body panels, wheels, trusses, nozzles and effects. Rendering budgets and performance knobs are described in [Rendering](docs/rendering.md).
+`src/scene/createRoadster.js` adapts the bundled GLB to the game's coordinates, rigs the four wheels and attaches smoke outlets to its nozzle housings. The lights are configured in `src/scene/createVehicleLights.js`. Rendering budgets and performance knobs are described in [Rendering](docs/rendering.md).
 
 ## Play
 
@@ -122,7 +124,7 @@ Gravity is exactly **9.8 m/s²**, with real time enabled by default on all devic
 
 The four lift nozzles can only push along the car's local +Y direction. LIFT engages them together; roll creates a left/right difference, and the opposite pair stops the spin. Four horizontal control groups supply forward, backward, left and right forces along local X/Z. Forward thrust uses four rear outlets; reverse redirects their gas forward/outward. Side assistance commands the real side valves and consumes gas. A banked sideways nozzle follows the banked car. Pitch and yaw rotation are constrained during flight.
 
-This is a focused stunt-game model: driving follows a sampled ramp path, airborne attitude is roll-only, and vehicle force parameters are gameplay values. Course geometry and the procedural car approximate the event reference. Detailed formulas, state/API contracts, numerical integration, constraints and damage rules are in [Physics](docs/physics.md).
+This is a focused stunt-game model: driving follows a sampled ramp path, airborne attitude is roll-only, and vehicle force parameters are gameplay values. The rendered car uses the supplied detailed model; collision geometry remains a separate conservative approximation. Detailed formulas, state/API contracts, numerical integration, constraints and damage rules are in [Physics](docs/physics.md).
 
 ## Verification
 
@@ -132,7 +134,7 @@ npm run check
 npm run build
 ```
 
-The physics suite covers the eight nozzle directions, exact gravity, gradual driving acceleration, braking/holding, wall rollback, contact loss, force and torque from roll, counter-roll fuel use, disabled pitch, collisions, damage thresholds and complete successful digital-control flights at several update rates. Clock tests cover uneven render timing, pause/slow behavior and input clearing within a frame. Input tests cover key mappings and the held-pedal handoff. Additional suites cover side assistance, its HUD indicators, moving-nozzle jet continuity, rear outlet groups, plentiful/fast-diffusing ground vapor, ramp-only suction audio and safe drive-away controls.
+The physics suite covers the eight nozzle directions, exact gravity, gradual driving acceleration, braking/holding, wall rollback, contact loss, force and torque from roll, counter-roll fuel use, disabled pitch, collisions, damage thresholds and complete successful digital-control flights at several update rates. Clock tests cover uneven render timing, pause/slow behavior and input clearing within a frame. Input tests cover key mappings and the held-pedal handoff. Additional suites cover side assistance, its HUD indicators, moving-nozzle jet continuity, rear outlet groups, plentiful/fast-diffusing ground vapor, ramp-only suction audio and safe drive-away controls. Model tests load the bundled GLB to check dimensions, wheel pivots, fixed calipers, batching, lights and reversible damage.
 
 For the repository refactor, numerical state was compared with the published game across **1,901 snapshots**, including full safe flights and a crash/reset sequence, with exact matches. Car and environment geometry/material/instance data and deterministic particle states also matched. Recent effects and control changes were also checked with headless Chromium, including mobile viewport emulation. Physical-device playtesting remains separate from those browser checks.
 
@@ -141,7 +143,7 @@ For the repository refactor, numerical state was compared with the published gam
 - [Architecture and extension points](docs/architecture.md)
 - [Physics, units and tuning](docs/physics.md)
 - [Controls and game flow](docs/controls.md)
-- [Procedural rendering and performance](docs/rendering.md)
+- [Rendering and performance](docs/rendering.md)
 - [Third-party notices](docs/third-party.md)
 
 ## Visual references
@@ -149,4 +151,4 @@ For the repository refactor, numerical state was compared with the published gam
 - [Official Roadster event video](https://www.youtube.com/watch?v=qt5p-_tE8d0)
 - [Event photo gallery](https://www.exoticcartrends.com/news/tesla-roadster-reveal-2026/)
 
-Reference photographs are not bundled. The game is an unofficial fan recreation with procedural assets.
+Reference photographs are not bundled. The game is an unofficial fan recreation using a user-supplied car model and procedural scenery.

@@ -14,6 +14,8 @@ The repository uses native JavaScript modules. Vite handles the development serv
 
 `createHud()` reads telemetry and results. `createEffects()` reads the car pose and actual nozzle output. The audio controller reads movement and nozzle output. Those components do not supply hidden forces or make landing decisions.
 
+Startup awaits `loadRoadster()` before enabling play. The factory loads the bundled GLB, normalizes its axes and origin, rigs its wheels, batches static parts and attaches lights and smoke anchors. Loading failure uses the app's startup error screen. The source GLB stays unchanged; each adapted car owns its cloned materials and baked geometry.
+
 ## Frame flow
 
 1. `InputController.sample()` combines the current keyboard and touch holds into physics commands.
@@ -28,7 +30,7 @@ Physics consumes real elapsed time at low frame rates. Optional slow motion scal
 
 `config.js` contains SI-unit parameters and game limits. `track.js` builds the contact path from the course dimensions. The rendered ramp also uses the shared course values, while its trusses, platform details and markings remain procedural art geometry.
 
-`thrusters.js` is the shared nozzle registry. Each entry contains a local position, local force direction, nozzle kind and maximum force. Physics sums the resulting force and `position × force` torque. The car builder keeps the actuator descriptors in the same order. Lift/side entries have one emitter each; each surge entry has four rear outlets for the aggregate force, with reverse using balanced exhaust deflection. Effects change intensity according to actual output; they do not invent extra roll or brake jets.
+`thrusters.js` is the shared nozzle registry. Each entry contains a local position, local force direction, nozzle kind and maximum force. Physics sums the resulting force and `position × force` torque. The car builder keeps the actuator descriptors in the same order, but takes visual emitter anchors from the GLB's nozzle housings. Lift/side entries have one emitter each; each surge entry has four rear outlets for the aggregate force, with reverse using balanced exhaust deflection. Effects change intensity according to actual output; they do not invent extra roll or brake jets.
 
 ## Extending the game
 
@@ -42,7 +44,7 @@ Change the named values in `config.js`. Run the physics tests after changing mot
 
 ### Change the car or nozzle layout
 
-Modify `createRoadster.js` for visual bodywork. Move flight nozzles through the registry so simulation and effects remain aligned. The collision hull in `FlightGame.js` is a separate conservative shape; update it if vehicle dimensions change materially.
+The visual bodywork is in `src/assets/roadster-rocket.glb`. Update `createRoadster.js` when replacing the asset or changing its named wheel/nozzle parts, axes or dimensions. Wheel calipers remain fixed while tyres, spokes and rotors spin. `createVehicleLights.js` connects the actual lamp materials to headlights and grounded brake feedback. Visual nozzle anchors come from the model; change `thrusters.js` when changing effective force positions, directions or power. The collision hull in `FlightGame.js` is a separate conservative shape; update it if vehicle dimensions change materially.
 
 ### Add pitch or unrestricted flight
 

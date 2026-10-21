@@ -1,15 +1,16 @@
-# Rendering and procedural assets
+# Rendering and assets
 
-The presentation uses Three.js and native browser APIs. The car, ramp, support frames, markings, light fixtures and exhaust are built from JavaScript geometry. The asphalt texture is generated from deterministic pixel data. There are no downloaded models, image textures, recorded sound files or rendering frameworks.
+The presentation uses Three.js and native browser APIs. The detailed car comes from the user-supplied [`roadster-rocket.glb`](../src/assets/roadster-rocket.glb), bundled locally with its embedded textures. The ramp, support frames, markings, arena light fixtures and exhaust are built from JavaScript geometry. The asphalt and smoke textures are generated; audio is synthesized.
 
 ## Responsibilities
 
-| Module                                                      | Responsibility                                                               | Public interface                      |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------- |
-| [`createRoadster.js`](../src/scene/createRoadster.js)       | Car geometry, materials and animation hooks                                  | `createRoadster({ color, detailed })` |
-| [`createEnvironment.js`](../src/scene/createEnvironment.js) | Arena, ramp, markings, lighting and static batching                          | `createEnvironment(scene)`            |
-| [`createEffects.js`](../src/scene/createEffects.js)         | Actual thruster plumes, ground vapor, touchdown particles and wheel rotation | `createEffects(scene)`                |
-| [`GameAudio.js`](../src/audio/GameAudio.js)                 | Optional synthesized motor, suction, jet and result sounds                   | `new GameAudio()`                     |
+| Module                                                          | Responsibility                                                               | Public interface                                      |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`createRoadster.js`](../src/scene/createRoadster.js)           | GLB loading, normalized geometry, wheel rig and nozzle hooks                 | `await loadRoadster()`; `createRoadster(parsedScene)` |
+| [`createVehicleLights.js`](../src/scene/createVehicleLights.js) | Actual headlamp/rear-bar materials, illumination and brake feedback          | `createVehicleLights(car, model)`                     |
+| [`createEnvironment.js`](../src/scene/createEnvironment.js)     | Arena, ramp, markings, lighting and static batching                          | `createEnvironment(scene)`                            |
+| [`createEffects.js`](../src/scene/createEffects.js)             | Actual thruster plumes, ground vapor, touchdown particles and wheel rotation | `createEffects(scene)`                                |
+| [`GameAudio.js`](../src/audio/GameAudio.js)                     | Optional synthesized motor, suction, jet and result sounds                   | `new GameAudio()`                                     |
 
 These modules read game state. They do not apply forces, change the vehicle pose, detect collisions or decide whether a landing succeeds. Those decisions belong to [`FlightGame.js`](../src/game/FlightGame.js). The app copies the simulation position and quaternion onto the car before updating its visual effects.
 
@@ -23,7 +24,7 @@ All positions use metres, times use seconds and rotations use radians.
 | `+Y`       | Up, through the roof     | Up from the asphalt                     |
 | `+Z`       | Left side                | Across the road                         |
 
-The car group's origin is the simulation's centre-of-mass reference. `ROADSTER_DIMENSIONS.restHeight` is `0.72` metres. Wheel groups rotate around their local Z axes, and the visual tyre radius is `0.36` metres. The flat physics ground is `y = 0`; thin visual surfaces use small offsets to avoid coincident faces.
+The car group's origin is the simulation's centre-of-mass reference. The GLB is already in metres, facing source `−Z`. The adapter rotates it by `−π/2` around Y to face game `+X` and offsets it by `−0.72` metres in Y without scaling. `ROADSTER_DIMENSIONS` records a length of `4.84`, width of `2.118`, rest height of `0.72` and tyre radius of `0.365` metres. Wheel groups rotate around their local Z axes. The flat physics ground is `y = 0`; thin visual surfaces use small offsets to avoid coincident faces.
 
 The curved riding surface follows the ellipse defined by `COURSE` in [`config.js`](../src/game/config.js):
 
@@ -35,32 +36,37 @@ y = COURSE.radiusY * (1 - Math.cos(t));
 
 The underside of the horizontal lip continues from the top of that curve. `createEnvironment.js` derives its named `RAMP_PROFILE` from the same configuration. The trusses, lamps, paint offsets and other decorative dimensions are authored separately; inspect those details when making a substantial change to the course dimensions.
 
-## Car construction
+## Car loading and rigging
 
-`createRoadster` builds a lofted body from cross sections along X. The outer lower edges rise over the wheels, leaving actual wheel openings. Separate polygon surfaces form the canopy and angular rear haunches. Tyres, closed aero discs, lamps, mirrors, sill details, the rear wing and diffuser complete the model.
+`loadRoadster()` uses Three.js `GLTFLoader` to load the bundled 7.8 MB GLB before the app enables play. Vite emits the model as a local build asset. Its four embedded PNGs require no external texture host. A failed load displays a model-specific startup error.
 
-The geometry helpers have distinct purposes:
+`createRoadster(parsedScene)` adapts a loaded scene without editing the source asset:
 
-- `createBodyShellGeometry` generates the body loft and wheel openings.
-- `createPolygonGeometry` triangulates faceted panels with separate face normals.
-- `createWheelArchGeometry` creates the narrow fender bands.
-- `mergeTransformedParts` bakes many same-material details into one geometry. It consumes and disposes the supplied temporary geometries after copying their vertices.
+- Clone materials and bake normalized transforms into copies of the geometry.
+- Place four wheel pivots at their axle centres. Tyres, spokes, hubs and rotors rotate together; the gold brake calipers remain fixed to the body.
+- Batch opaque parts by material within the body or each wheel's animation group. Transparent glass and labels remain separate for sorting. This retains the detailed geometry while reducing draw calls.
+- Capture the actual headlamp, rear light and nozzle anchors before removing the original hierarchy.
 
 The factory exposes these animation hooks on `car.userData`:
 
 | Hook                   | Use                                                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `wheels`               | Four wheel groups. Effects advance `rotation.z` from signed `game.driveSpeed`.                                                 |
+| `wheelRadius`          | Actual tyre radius, `0.365` metres, used to convert driving distance into wheel rotation.                                      |
+| `brakeCalipers`        | Four fixed groups at the wheel centres, independent of wheel rotation.                                                         |
 | `thrusters`            | Eight actuator descriptors in registry order. Surge entries include four rear `outlets`; each outlet has a mesh and direction. |
+| `lights`               | Two headlights and targets, rear spill, lamp materials, and brake-response `update`/`reset` hooks.                             |
 | `bodyBounds`           | Bounds of the car body before the hidden exhaust volumes are added. These are visual bounds, not the collision hull.           |
 | `paintMaterials`       | Body materials used by the reversible damage tint.                                                                             |
 | `markDamaged(boolean)` | Darken and roughen the body, or restore the normal finish.                                                                     |
 
-`detailed: false` reduces wheel tessellation and omits small close-view details. It preserves the overall silhouette, wheel hooks and eight-unit actuator layout. The app can reuse the same car across attempts by resetting animation and damage state.
+The app reuses the car across attempts by resetting wheel/light animation and damage state. Separate cars adapted from the same parsed scene have independent geometry, materials and animation state.
+
+`createVehicleLights.js` illuminates the model's white headlamp guides and daytime strip, with two forward-facing spotlights. The red rear blade and a small rear spill brighten with actual grounded `game.braking`; flight controls do not trigger brake lights. Lights and their targets follow the car's pose, and reset restores the normal lamp intensities.
 
 ## One registry for eight actuator groups
 
-[`thrusters.js`](../src/game/thrusters.js) is the shared actuator definition. Effects read `game.thrusterLevels` in registry order. Lift and side actuators each drive one outlet; each surge actuator drives the four rear outlets as a balanced group. The registry positions for surge are equivalent resultant-force locations, not four individual housing positions.
+[`thrusters.js`](../src/game/thrusters.js) is the shared actuator definition. Effects read `game.thrusterLevels` in registry order. Lift and side actuators each drive one outlet; each surge actuator drives the four rear outlets as a balanced group. The GLB's named nozzle lips/rims supply the visual emitter positions, offset slightly beyond the housings to prevent clipping. Physics retains the registry's effective force positions; surge positions represent equivalent resultant-force locations.
 
 | Units                      | Force direction   | Exhaust direction         |
 | -------------------------- | ----------------- | ------------------------- |
@@ -108,13 +114,13 @@ The smoke pool uses one instanced draw call and reusable typed arrays for simula
 
 ## Lighting and performance knobs
 
-The arena uses a dark background, hemisphere fill, white directional floodlighting, two non-shadowing spotlights and subtle red spill. The directional light owns the single shadow map, initially `1024 × 1024`. Repeated structural beams and barriers use instancing; repeated static boxes are batched by material within their semantic groups.
+The arena uses a dark background, hemisphere fill, white directional floodlighting, two non-shadowing spotlights and subtle red spill. The directional light owns the single shadow map, initially `1024 × 1024`. The car's opaque two-sided materials cast from their back faces to avoid self-shadow banding on shallow body panels. Repeated structural beams and barriers use instancing; repeated static boxes are batched by material within their semantic groups.
 
 Useful places to adjust rendering cost are:
 
 - **Renderer resolution:** the app owns pixel ratio, antialiasing and shadow settings. Resolution changes affect the whole frame.
 - **Shadow map size:** change the directional light configuration in `addLights` inside `createEnvironment.js`.
-- **Car detail:** choose `createRoadster({ detailed: false })` for fewer wheel segments and decorative parts.
+- **Car draw calls:** keep opaque parts batched by material within each animation group; preserve separate transparent surfaces for sorting. Reducing polygon detail requires a revised model asset.
 - **Ramp tessellation:** `createRampStrip` defaults to 112 segments. The visible strips and their normals use that subdivision.
 - **Particle capacity:** `SMOKE_CAPACITY` in `effectsConfig.js` and the small point-pool constants in `createEffects.js` bound memory and effect density. Emission rates, smoke lifetime, expansion and opacity control cloud fullness and overdraw; check mobile performance when increasing them.
 
@@ -126,4 +132,4 @@ Rendering tuning should preserve actuator IDs and directions, body scale, wheel 
 
 For compatibility, `effects.update(dt, game, car, input)` and `audio.update(game, input, paused)` still accept an `input` argument. Neither uses raw controls to invent actuator activity: both read simulation state. Pass elapsed seconds through the app's frame loop, copy the pose before the effects update, and call touchdown feedback once when entering a terminal result state.
 
-Scene construction can be smoke-tested in Node because the procedural assets and data texture do not need a DOM or WebGL context. Pixel-level appearance, shader compilation and audible output still require a browser check.
+Node tests parse the bundled GLB through a test loader that substitutes simple data textures for its embedded PNGs. They verify the actual geometry, rig, materials, batching and lights without a DOM or WebGL context. Procedural scene and effect construction also run in Node. Decoding the embedded images, pixel-level appearance, shader compilation and audible output still require a browser check.

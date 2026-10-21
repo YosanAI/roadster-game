@@ -5,6 +5,7 @@ import { THRUSTERS } from '../src/game/thrusters.js';
 import { createEffects } from '../src/scene/createEffects.js';
 import { createSmokePool } from '../src/scene/createSmokePool.js';
 import { createRoadster } from '../src/scene/createRoadster.js';
+import { loadRoadsterModel } from './helpers/loadRoadsterModel.js';
 
 // Exercise the renderer-facing particle buffers without requiring a WebGL
 // context. No DOM, road meshes or physics integration are needed for emission.
@@ -111,8 +112,8 @@ test('a banked horizontal nozzle disturbs the ground only when its exhaust point
   assert.equal(up.particles(1).length, 0, 'the opposite banked nozzle points away from the road');
 });
 
-test('forward and reverse thrust each drive the four rear outlets from one valve group', () => {
-  const h = createHarness({ height: 20, car: createRoadster({ detailed: false }) });
+test('forward and reverse thrust each drive the four rear outlets from one valve group', async () => {
+  const h = createHarness({ height: 20, car: createRoadster(await loadRoadsterModel()) });
   assert.equal(h.car.userData.thrusters.length, THRUSTERS.length);
   for (const index of [4, 5]) {
     h.effects.reset();
@@ -206,13 +207,14 @@ test('orbiting while paused reorders smoke without emitting or aging the cloud',
   camera.lookAt(0, 15, 0);
   h.effects.update(0, h.game, h.car, {}, camera);
   let positions = h.particles().map((particle) => particle.z);
-  assert.ok(positions.every((z, i) => i === 0 || positions[i - 1] <= z));
+  // Float32 depth keys can tie for positions less than a few micrometres apart.
+  assert.ok(positions.every((z, i) => i === 0 || positions[i - 1] <= z + 1e-5));
 
   camera.position.z = -12;
   camera.lookAt(0, 15, 0);
   h.effects.update(0, h.game, h.car, {}, camera);
   positions = h.particles().map((particle) => particle.z);
-  assert.ok(positions.every((z, i) => i === 0 || positions[i - 1] >= z));
+  assert.ok(positions.every((z, i) => i === 0 || positions[i - 1] >= z - 1e-5));
   assert.deepEqual(snapshot(), frozenCloud, 'paused updates must preserve every cloud particle');
 });
 
